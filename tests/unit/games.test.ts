@@ -187,3 +187,29 @@ describe('احتساب النتائج', () => {
     expect(rankSimilarity([0, 1, 2, 3], [1, 0, 2, 3])).toBe(75)
   })
 })
+
+import { beginBuild, endBuild, fresh, hashKey } from '../../src/games/engine/fresh'
+
+describe('منع التكرار', () => {
+  it('لا يعيد الأسئلة الملعوبة قبل انتهاء البنك', () => {
+    const pool = Array.from({ length: 20 }, (_, i) => `q${i}`)
+    const seenSet = pool.slice(0, 15).map(hashKey)
+    beginBuild(seenSet)
+    const got = fresh(pool, 5, seededRng(1))
+    const used = endBuild()
+    expect([...got].sort()).toEqual(['q15', 'q16', 'q17', 'q18', 'q19'])
+    expect(used.includes('__cycle__')).toBe(false)
+  })
+  it('عند انتهاء البنك تبدأ دورة جديدة', () => {
+    const pool = ['a', 'b', 'c']
+    beginBuild(['a', 'b'].map(hashKey))
+    const got = fresh(pool, 3, seededRng(2))
+    const used = endBuild()
+    expect(got[0]).toBe('c')
+    expect(used.includes('__cycle__')).toBe(true)
+  })
+  it('صراحة أو تحدي: 500 بطاقة، اختار واحد واخلنا نتكلم: 500+', () => {
+    const td = gameById('truth-dare')!.build({ level: 'mixed', rounds: '10' }, seededRng(1))
+    expect((td.content.truths as string[]).length).toBe(30)
+  })
+})

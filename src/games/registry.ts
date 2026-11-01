@@ -1,6 +1,10 @@
 import type { CategoryId, ChoiceItem, GameDef, RankItem, RoundItem, Summary, SummaryCtx, TextItem } from './types'
-import { pick, shuffle, type Rng } from '../utils/random'
+import { shuffle, type Rng } from '../utils/random'
+import { fresh as pick } from './engine/fresh'
 import { knowMeItems } from './content/knowMe'
+import { moreDares, moreTruths } from './content/truthDareMore'
+import { talkMore } from './content/talkMore'
+import { thisOrThatMore } from './content/thisOrThatMore'
 import { dares, tdLevels, truths, type TdLevel } from './content/truthDare'
 import { compatItems, neverItems, thisOrThat, whoMore } from './content/choices'
 import { askMeBank, completeItems, guessAnswerItems, rememberPrompts, talkItems } from './content/talk'
@@ -35,6 +39,9 @@ function mcq(rng: Rng, q: string, a: string, w: string[], extra: Partial<ChoiceI
   const options = shuffle([a, ...w], rng)
   return { type: 'choice', prompt: q, options, correct: options.indexOf(a), ...extra }
 }
+
+const allThisOrThat: [string, string][] = [...thisOrThat, ...thisOrThatMore]
+const allTalk: { c: string; q: string }[] = [...talkItems, ...Object.entries(talkMore).flatMap(([c, qs]) => qs.map((q) => ({ c, q })))]
 
 const items = (s: SummaryCtx) => (s.session.content?.items ?? []) as RoundItem[]
 
@@ -167,8 +174,8 @@ const defs: GameDef[] = [
         seconds: null,
         content: {
           total,
-          truths: pick(levels.flatMap((l) => truths[l]), 30, rng),
-          dares: pick(levels.flatMap((l) => dares[l]), 30, rng),
+          truths: pick(levels.flatMap((l) => [...truths[l], ...moreTruths[l]]), 30, rng),
+          dares: pick(levels.flatMap((l) => [...dares[l], ...moreDares[l]]), 30, rng),
         },
       }
     },
@@ -204,7 +211,7 @@ const defs: GameDef[] = [
       return {
         rounds: n,
         seconds: null,
-        content: { items: pick(thisOrThat, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: 'وش تختار؟', options: [...x] })) },
+        content: { items: pick(allThisOrThat, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: 'وش تختار؟', options: [...x] })) },
       }
     },
     summarize: (ctx) => matchSummary(ctx, 'نسبة التشابه'),
@@ -249,12 +256,12 @@ const defs: GameDef[] = [
         label: 'نوع الأسئلة',
         kind: 'select',
         default: 'all',
-        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(talkItems.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
+        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(allTalk.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
       },
       roundsOpt('6', ['4', '6', '10']),
     ],
     build: (o, rng) => {
-      const pool = o.cat && o.cat !== 'all' ? talkItems.filter((t) => t.c === o.cat) : talkItems
+      const pool = o.cat && o.cat !== 'all' ? allTalk.filter((t) => t.c === o.cat) : allTalk
       const sel = pick(pool, N(o, 'rounds', 6), rng)
       return {
         rounds: sel.length,

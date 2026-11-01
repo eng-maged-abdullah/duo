@@ -18,6 +18,7 @@ import { useToast } from '../components/ui/Toast'
 import { LogoMark } from '../components/ui/Logo'
 import { errorText, t } from '../lib/i18n'
 import { uuid } from '../utils/random'
+import { beginBuild, endBuild, loadSeen, saveSeen } from '../games/engine/fresh'
 import { sfx } from '../lib/sound'
 
 export function RoomPage() {
@@ -233,7 +234,11 @@ function useStarter() {
     if (!reqRef.current || reqRef.current.key !== key) reqRef.current = { key, id: uuid() }
     setBusy(true)
     try {
+      // لا تتكرر الأسئلة داخل الغرفة حتى تنتهي أسئلة اللعبة
+      const prev = loadSeen(r.room.code, g.id)
+      beginBuild(prev)
       const built = g.build(opts, Math.random)
+      const used = endBuild()
       const res = await roomsApi.startGame({
         roomId: r.room.id,
         game: g.id,
@@ -248,6 +253,7 @@ function useStarter() {
         return false
       }
       lastOpts.set(g.id, opts)
+      saveSeen(r.room.code, g.id, prev, used)
       reqRef.current = null
       sfx('select')
       await r.refreshGame()
