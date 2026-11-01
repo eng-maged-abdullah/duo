@@ -253,6 +253,29 @@ do $$ declare i int; res jsonb; begin
 end $$;
 select t.ok(true, '57 join brute-force rate limited');
 
+-- ========== Delete room (creator only) ==========
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select create_room('مها') ->> 'room_id' as r2 \gset
+select (create_room('مها') ->> 'code') is not null as dummy \gset
+select code as c2 from rooms where id = :'r2' \gset
+select t.ok((select extract(year from expires_at) from rooms where id = :'r2') = 9999, '59 new rooms never auto-expire');
+reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
+set role authenticated;
+select t.ok((join_room(:'c2', 'سعد') ->> 'ok')::boolean, '60 partner joins');
+select t.ok((send_message(:'r2', 'هلا', gen_random_uuid()) ->> 'ok')::boolean, '60b partner message');
+select t.ok((delete_room(:'r2') ->> 'error') = 'not_host', '61 partner cannot delete room');
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select t.ok((delete_room(:'r2') ->> 'ok')::boolean, '62 creator deletes room');
+reset role;
+select t.ok((select count(*) from rooms where id = :'r2') = 0 and (select count(*) from room_messages where room_id = :'r2') = 0, '63 room and messages gone');
+select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select t.ok((leave_room((select id from rooms where host_id = :'A' limit 1)) ->> 'ok')::boolean, '64 last player leaves');
+reset role;
+select t.ok((select count(*) from rooms where host_id = :'A') >= 1, '64b empty room kept (not auto-deleted)');
+
 -- anon role (not signed in) has no access
 reset role; select set_config('request.jwt.claim.sub', '', false) \g /dev/null
 set role anon;

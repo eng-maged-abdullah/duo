@@ -25,6 +25,9 @@ export function t(key: keyof Dict, vars?: Record<string, string | number>): stri
 const errorKeys: Record<string, keyof Dict> = {
   no_session: 'err_no_session',
   anon_disabled: 'err_anon_disabled',
+  bad_key: 'err_bad_key',
+  bad_url: 'err_bad_url',
+  captcha_on: 'err_captcha_on',
   config: 'err_config',
   secret_key: 'err_secret_key',
   bad_nickname: 'err_bad_nickname',

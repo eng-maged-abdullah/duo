@@ -87,7 +87,7 @@ export function RoomScreen({ code }: { code: string }) {
       </div>
     )
   }
-  if (r.status === 'not_member') return <Navigate to={`/join/${code}`} replace state={{ notice: 'ادخل اسمك للانضمام إلى هذه الغرفة' }} />
+  if (r.status === 'not_member') return <Navigate to={`/join/${code}`} replace state={{ notice: 'هذه الغرفة غير متاحة لك: إما حُذفت أو لست عضوًا فيها. للانضمام اكتب اسمك.' }} />
   if (r.status === 'error') {
     return (
       <div className="min-h-dvh grid place-items-center px-6">
@@ -129,7 +129,7 @@ export function RoomScreen({ code }: { code: string }) {
           <IconButton label={t('chat')} onClick={() => setChat((v) => !v)} badge={r.unread} active={chat}>
             <MessageCircle className="size-5" />
           </IconButton>
-          <IconButton label={t('leave_room')} onClick={() => setLeaveOpen(true)}>
+          <IconButton label="خيارات الغرفة" onClick={() => setLeaveOpen(true)}>
             <DoorOpen className="size-5" />
           </IconButton>
         </div>
@@ -164,22 +164,42 @@ export function RoomScreen({ code }: { code: string }) {
       )}
       <ChatPanel open={chat} onClose={() => setChat(false)} />
 
-      <Sheet open={leaveOpen} onClose={() => setLeaveOpen(false)} title={t('leave_room')}>
-        <p className="text-mist mb-5">ستغادر الغرفة وتنتهي المكالمة. يمكن لشخص آخر الانضمام مكانك بنفس الرمز ما دامت الغرفة صالحة.</p>
-        <div className="flex gap-3">
-          <Button
-            variant="danger"
-            block
-            onClick={async () => {
-              await r.leave()
-              nav('/', { replace: true })
-            }}
-          >
-            مغادرة
+      <Sheet open={leaveOpen} onClose={() => setLeaveOpen(false)} title="خيارات الغرفة">
+        <div className="space-y-3">
+          <Button variant="glass" block onClick={() => nav('/')}>
+            الرجوع للرئيسية (تبقى الغرفة محفوظة)
           </Button>
-          <Button variant="glass" block onClick={() => setLeaveOpen(false)}>
-            البقاء
-          </Button>
+          {r.isHost ? (
+            <>
+              <Button
+                variant="danger"
+                block
+                onClick={async () => {
+                  if (!window.confirm('حذف الغرفة نهائيًا مع كل رسائلها؟ لا يمكن التراجع.')) return
+                  const err = await r.deleteRoom()
+                  if (err) toast(errorText(err), 'error')
+                  else nav('/', { replace: true })
+                }}
+              >
+                حذف الغرفة نهائيًا
+              </Button>
+              <p className="text-xs text-mist leading-relaxed">الحذف يزيل الغرفة والرسائل والإجابات من قاعدة البيانات فورًا، ويخرج شريكك منها.</p>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="danger"
+                block
+                onClick={async () => {
+                  await r.leave()
+                  nav('/', { replace: true })
+                }}
+              >
+                مغادرة الغرفة نهائيًا
+              </Button>
+              <p className="text-xs text-mist leading-relaxed">بعد المغادرة يمكن لشخص آخر أخذ مكانك بنفس الرمز. منشئ الغرفة فقط يستطيع حذفها.</p>
+            </>
+          )}
         </div>
       </Sheet>
     </div>
@@ -255,7 +275,6 @@ function Lobby({ code }: { code: string }) {
   const [sheet, setSheet] = useState(false)
   const { start, busy } = useStarter()
   const suggested = gameById(r.room?.current_game)
-  const hoursLeft = r.room ? Math.max(0, Math.round((new Date(r.room.expires_at).getTime() - r.serverNow()) / 3600000)) : 24
   const list = cat === 'all' ? games : games.filter((g) => g.categories.includes(cat))
   const sheetKey = useMemo(() => `${selected?.id}:${Date.now()}`, [selected, sheet]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -297,7 +316,7 @@ function Lobby({ code }: { code: string }) {
               {t('share_invite')}
             </Button>
           </div>
-          <p className="mt-5 text-xs text-mist">{t('room_expiry_note', { hours: hoursLeft })}</p>
+          <p className="mt-5 text-xs text-mist">{t('room_expiry_note')}</p>
         </motion.section>
       ) : (
         <section className="glass rounded-[1.75rem] p-4 mb-6 flex items-center gap-3">

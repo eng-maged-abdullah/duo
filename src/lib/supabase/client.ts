@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim()
+// يقبل الرابط حتى لو نُسخ معه /rest/v1/ أو شرطة زائدة
+const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim().replace(/\/(rest|auth)\/v1\/?$/, '').replace(/\/+$/, '')
 const key = (
   (import.meta.env.VITE_SUPABASE_PUBLIC_KEY as string | undefined) ??
   (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)

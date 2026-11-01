@@ -42,6 +42,7 @@ export type RoomCtxValue = {
   voice: VoiceCall | null
   voiceState: VoiceState | null
   leave: () => Promise<void>
+  deleteRoom: () => Promise<string | null>
 }
 
 /** مُصدَّر لاختبارات الواجهة المرئية فقط */
@@ -400,6 +401,16 @@ export function RoomProvider({ code, children }: { code: string; children: React
     local.setLastRoom(null)
   }, [])
 
+  const deleteRoom = useCallback(async () => {
+    const rid = roomIdRef.current
+    if (!rid) return null
+    const res = await roomsApi.deleteRoom(rid)
+    if (!res.ok) return res.error
+    voiceRef.current?.dispose()
+    local.setLastRoom(null)
+    return null
+  }, [])
+
   const me = players.find((p) => p.user_id === myId)
   const partner = players.find((p) => p.user_id !== myId)
 
@@ -430,8 +441,9 @@ export function RoomProvider({ code, children }: { code: string; children: React
       voice: voiceRef.current,
       voiceState,
       leave,
+      deleteRoom,
     }),
-    [status, error, myId, room, players, me, partner, online, connection, session, answers, moves, fetchGame, messages, sendMessage, retryMessage, unread, setChatOpen, partnerTyping, notifyTyping, voiceState, leave],
+    [status, error, myId, room, players, me, partner, online, connection, session, answers, moves, fetchGame, messages, sendMessage, retryMessage, unread, setChatOpen, partnerTyping, notifyTyping, voiceState, leave, deleteRoom],
   )
 
   return <RoomCtx.Provider value={value}>{children}</RoomCtx.Provider>

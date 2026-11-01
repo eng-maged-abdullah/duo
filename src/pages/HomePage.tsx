@@ -9,7 +9,6 @@ import { GameSetupSheet } from '../components/room/GameSetupSheet'
 import { SettingsSheet } from '../components/SettingsSheet'
 import { categories, games } from '../games/registry'
 import type { CategoryId, GameDef } from '../games/types'
-import { local } from '../lib/rooms/storage'
 import { supabase, isConfigured } from '../lib/supabase/client'
 import { t } from '../lib/i18n'
 
@@ -19,23 +18,21 @@ export function HomePage() {
   const [cat, setCat] = useState<CategoryId | 'all'>('all')
   const [settings, setSettings] = useState(false)
   const [preview, setPreview] = useState<GameDef | undefined>()
-  const [restore, setRestore] = useState<{ code: string } | null>(null)
+  const [rooms, setRooms] = useState<{ code: string; created_at: string }[]>([])
 
-  // استعادة جلسة سابقة: نتحقق من الخادم أن الغرفة ما زالت صالحة وأنك عضو فيها
+  // غرفي: كل الغرف التي أنا عضو فيها (من الخادم، محمية بـ RLS)
   useEffect(() => {
-    const last = local.lastRoom()
-    if (!last || !isConfigured) return
+    if (!isConfigured) return
     let alive = true
     ;(async () => {
       try {
         const sb = supabase()
         const { data: sess } = await sb.auth.getSession()
         if (!sess.session) return
-        const { data } = await sb.from('rooms').select('code, expires_at, status').eq('code', last.code).maybeSingle()
-        if (alive && data && data.status === 'open' && new Date(data.expires_at).getTime() > Date.now()) setRestore({ code: data.code })
-        else if (alive && !data) local.setLastRoom(null)
+        const { data } = await sb.from('rooms').select('code, created_at').eq('status', 'open').order('created_at', { ascending: false }).limit(10)
+        if (alive && data) setRooms(data as { code: string; created_at: string }[])
       } catch {
-        /* بدون اتصال: لا نعرض الاستعادة */
+        /* بدون اتصال */
       }
     })()
     return () => {
@@ -77,13 +74,19 @@ export function HomePage() {
               {t('join_room')}
             </Button>
           </motion.div>
-          {restore && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-5">
-              <Link to={`/room/${restore.code}`} className="inline-flex items-center gap-2 rounded-2xl glass px-4 py-3 text-sm hover:bg-white/10">
-                <RotateCcw className="size-4 text-champagne" />
-                ارجع إلى غرفتك <span className="code-font font-semibold">{restore.code}</span>
-                <ArrowLeft className="size-4" />
-              </Link>
+          {rooms.length > 0 && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 max-w-md mx-auto text-start">
+              <p className="text-sm text-mist mb-2">غرفي</p>
+              <div className="grid gap-2">
+                {rooms.map((r) => (
+                  <Link key={r.code} to={`/room/${r.code}`} className="flex items-center gap-3 rounded-2xl glass px-4 h-14 hover:bg-white/10">
+                    <RotateCcw className="size-4 text-champagne" />
+                    <span className="code-font font-semibold">{r.code}</span>
+                    <span className="flex-1 text-xs text-mist">{new Date(r.created_at).toLocaleDateString('ar-SA-u-nu-latn')}</span>
+                    <ArrowLeft className="size-4" />
+                  </Link>
+                ))}
+              </div>
             </motion.div>
           )}
           {!isConfigured && (
@@ -180,7 +183,7 @@ export function HomePage() {
           <div className="glass rounded-2xl p-4 flex gap-3">
             <Shield className="size-5 text-emerald-300 shrink-0 mt-0.5" />
             <p className="text-sm text-mist leading-relaxed">
-              الغرف خاصة: لا يراها إلا اللاعبان. لا نطلب اسمك الحقيقي أو بريدك أو رقمك، ولا نسجّل الصوت. تُحذف الغرفة ورسائلها تلقائيًا بعد 24 ساعة.
+              الغرف خاصة: لا يراها إلا اللاعبان. لا نطلب اسمك الحقيقي أو بريدك أو رقمك، ولا نسجّل الصوت. الغرفة تبقى محفوظة، ومنشئها يقدر يحذفها مع رسائلها في أي وقت.
             </p>
           </div>
           <div className="glass rounded-2xl p-4 flex gap-3">

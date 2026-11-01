@@ -46,6 +46,7 @@ export const roomsApi = {
       p_nickname: nickname,
     }),
   leave: (roomId: string) => rpc('leave_room', { p_room: roomId }),
+  deleteRoom: (roomId: string) => rpc('delete_room', { p_room: roomId }),
   selectGame: (roomId: string, game: string | null) => rpc('select_game', { p_room: roomId, p_game: game }),
   startGame: (args: {
     roomId: string

@@ -10,6 +10,10 @@ import { normalizeCode, roomsApi } from '../lib/rooms/api'
 import { local } from '../lib/rooms/storage'
 import { errorText, t } from '../lib/i18n'
 import { isConfigured } from '../lib/supabase/client'
+import { lastAuthError } from '../lib/supabase/session'
+
+const withDetail = (code: string) =>
+  errorText(code) + (['no_session', 'bad_url', 'bad_key', 'network'].includes(code) && lastAuthError ? ` (${lastAuthError})` : '')
 
 function Shell({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -65,7 +69,7 @@ export function CreatePage() {
     local.setNickname(n)
     const res = await roomsApi.create(n, game)
     setBusy(false)
-    if (!res.ok) return setError(errorText(res.error))
+    if (!res.ok) return setError(withDetail(res.error))
     local.setLastRoom(res.code)
     nav(`/room/${res.code}`, { replace: true })
   }
@@ -83,7 +87,7 @@ export function CreatePage() {
       <Button variant="primary" size="lg" block loading={busy} disabled={!isConfigured} onClick={() => void create()} icon={<Plus className="size-5" />}>
         {t('create_room')}
       </Button>
-      <p className="mt-4 text-center text-xs text-mist">الغرفة تتسع لشخصين، وتنتهي تلقائيًا بعد 24 ساعة.</p>
+      <p className="mt-4 text-center text-xs text-mist">الغرفة تتسع لشخصين، وتبقى محفوظة حتى تحذفها أنت.</p>
     </Shell>
   )
 }
@@ -107,7 +111,7 @@ export function JoinPage() {
     local.setNickname(n)
     const res = await roomsApi.join(code, n)
     setBusy(false)
-    if (!res.ok) return setError(errorText(res.error))
+    if (!res.ok) return setError(withDetail(res.error))
     local.setLastRoom(res.code)
     nav(`/room/${res.code}`, { replace: true })
   }
