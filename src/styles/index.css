@@ -194,6 +194,56 @@ textarea {
   animation: shimmer 2.2s linear infinite;
 }
 
+/* ---------------- الوضع الصباحي (فاتح) ---------------- */
+html.light {
+  color-scheme: light;
+  --color-cloud: #1d1228;
+  --color-mist: #6b5a7e;
+  --color-night-950: #faf7fc;
+  --color-night-900: #f5f0f9;
+  --color-night-850: #efe8f5;
+  --color-night-800: #ece4f3;
+  --color-night-700: #e2d6ee;
+  --color-night-600: #d4c3e6;
+  --color-champagne: #a2672b;
+  --color-iris-300: #6d3fd6;
+  --color-iris-400: #7a52e0;
+  --color-rose-300: #c2316f;
+  --color-rose-200: #b0245f;
+  --color-emerald-200: #0f7a55;
+  --color-emerald-300: #0f8a5f;
+  /* طبقات الشفافية البيضاء تصير داكنة خفيفة على الخلفية الفاتحة */
+  --color-white: #2a1a3a;
+  background: #faf7fc;
+}
+html.light body {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgb(139 92 246 / 0.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 20%, rgb(240 80 154 / 0.1), transparent 60%),
+    #faf7fc;
+  background-attachment: fixed;
+}
+html.light body::before { opacity: 0.025; }
+html.light .glass {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.92), rgb(255 255 255 / 0.7));
+  border-color: rgb(42 26 58 / 0.1);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.8) inset, 0 14px 40px -24px rgb(60 30 90 / 0.35);
+}
+html.light .glass-strong {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.98), rgb(248 243 252 / 0.98));
+  border-color: rgb(42 26 58 / 0.1);
+}
+html.light .text-gradient {
+  background: linear-gradient(100deg, #5b2bd1 0%, #8b5cf6 35%, #e0407f 75%, #b8702c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+/* العناصر الملونة تبقى نصوصها بيضاء في الوضعين */
+html.light .btn-primary,
+html.light .on-color {
+  --color-white: #ffffff;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, DoorOpen, Heart, MessageCircle, Mic, Plus, RotateCcw, Search, Settings, Shield } from 'lucide-react'
+import { ArrowLeft, DoorOpen, Heart, MessageCircle, Mic, Moon, Plus, RotateCcw, Search, Settings, Shield, Sun } from 'lucide-react'
+import { resolvedTheme, setThemePref } from '../lib/theme'
 import { Logo } from '../components/ui/Logo'
 import { Button, IconButton } from '../components/ui/Button'
 import { GameCard } from '../components/games/GameCard'
@@ -17,6 +18,7 @@ export function HomePage() {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState<CategoryId | 'all'>('all')
   const [settings, setSettings] = useState(false)
+  const [dark, setDark] = useState(() => resolvedTheme() === 'dark')
   const [preview, setPreview] = useState<GameDef | undefined>()
   const [rooms, setRooms] = useState<{ code: string; created_at: string }[]>([])
 
@@ -52,9 +54,21 @@ export function HomePage() {
       <div className="mx-auto max-w-5xl">
         <header className="flex items-center justify-between py-3">
           <Logo size="sm" />
-          <IconButton label={t('settings')} onClick={() => setSettings(true)}>
-            <Settings className="size-5" />
-          </IconButton>
+          <div className="flex gap-2">
+            <IconButton
+              label={dark ? 'الوضع الصباحي' : 'الوضع الليلي'}
+              onClick={() => {
+                const next = dark ? 'light' : 'dark'
+                setThemePref(next)
+                setDark(next === 'dark')
+              }}
+            >
+              {dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
+            </IconButton>
+            <IconButton label={t('settings')} onClick={() => setSettings(true)}>
+              <Settings className="size-5" />
+            </IconButton>
+          </div>
         </header>
 
         {/* البطل */}
@@ -63,8 +77,6 @@ export function HomePage() {
             <div className="mx-auto mb-6 w-fit">
               <Logo size="lg" />
             </div>
-            <h1 className="font-display text-[1.7rem] sm:text-4xl font-semibold leading-snug text-balance max-w-xl mx-auto">{t('app_tagline')}</h1>
-            <p className="mt-3 text-mist max-w-md mx-auto leading-relaxed">غرفة خاصة لشخصين: ٢٠ لعبة، شات فوري، ومكالمة صوتية — بدون حسابات ولا أرقام.</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, duration: 0.6 }} className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto">
             <Button variant="primary" size="lg" icon={<Plus className="size-5" />} onClick={() => nav('/create')}>
@@ -119,7 +131,7 @@ export function HomePage() {
               <button
                 key={g.id}
                 onClick={() => setPreview(g)}
-                className="snap-start shrink-0 w-[78%] sm:w-[300px] relative overflow-hidden rounded-[1.75rem] p-5 text-start min-h-44"
+                className="on-color snap-start shrink-0 w-[78%] sm:w-[300px] relative overflow-hidden rounded-[1.75rem] p-5 text-start min-h-44"
                 style={{ background: `linear-gradient(145deg, ${g.accent[0]}cc, ${g.accent[1]}99)` }}
               >
                 <span className="absolute -bottom-6 -start-4 text-[7rem] opacity-25 select-none" aria-hidden>
@@ -195,7 +207,7 @@ export function HomePage() {
         <footer className="pb-6 text-center text-xs text-mist/70">DUO · صُنع للعب معًا</footer>
       </div>
 
-      <SettingsSheet open={settings} onClose={() => setSettings(false)} />
+      <SettingsSheet open={settings} onClose={() => { setSettings(false); setDark(resolvedTheme() === 'dark') }} />
       <GameSetupSheet
         game={preview}
         open={Boolean(preview)}

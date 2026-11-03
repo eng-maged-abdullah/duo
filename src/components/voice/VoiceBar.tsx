@@ -98,7 +98,7 @@ export function VoiceBar({ compact }: { compact?: boolean }) {
           >
             {v!.remoteMuted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
           </button>
-          <button onClick={() => voice?.hangup()} className="size-10 shrink-0 rounded-xl grid place-items-center bg-rose-500/80 text-white" aria-label="إنهاء المكالمة">
+          <button onClick={() => voice?.hangup()} className="size-10 shrink-0 rounded-xl grid place-items-center bg-rose-500/80 text-white on-color" aria-label="إنهاء المكالمة">
             <PhoneOff className="size-5" />
           </button>
         </>

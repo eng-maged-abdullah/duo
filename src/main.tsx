@@ -9,6 +9,9 @@ import '@fontsource/readex-pro/arabic-600.css'
 import '@fontsource/readex-pro/latin-600.css'
 import './styles/index.css'
 import { App } from './app/App'
+import { applyTheme } from './lib/theme'
+
+applyTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -15,6 +15,13 @@
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <title>DUO — العبوا معًا</title>
+    <script>
+      try {
+        var p = localStorage.getItem('duo:theme')
+        var l = p === 'light' || (p !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches)
+        if (l) document.documentElement.classList.add('light')
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
