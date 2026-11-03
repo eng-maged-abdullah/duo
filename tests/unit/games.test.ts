@@ -213,3 +213,31 @@ describe('منع التكرار', () => {
     expect((td.content.truths as string[]).length).toBe(30)
   })
 })
+
+import { contentBanks, contentStats } from '../../src/games/registry'
+
+describe('بنوك المحتوى', () => {
+  it('كل لعبة أسئلة فيها 500 أو أكثر (والألغاز والرموز وتذكر التفاصيل والقصص 150+)', () => {
+    const small = ['what-guess', 'emoji', 'remember', 'story']
+    for (const [id, n] of Object.entries(contentStats)) expect(n).toBeGreaterThanOrEqual(small.includes(id) ? 150 : 500)
+  })
+  it('أسئلة الإجابة الصحيحة: 4 خيارات مختلفة والإجابة ليست ضمن الخطأ', () => {
+    for (const x of [...contentBanks.allQuick, ...contentBanks.allRiddles]) {
+      const opts = [x.a, ...x.w]
+      expect(opts.every((o) => typeof o === 'string' && o.length > 0)).toBe(true)
+      expect(new Set(opts).size).toBe(4)
+    }
+    for (const x of contentBanks.allEmoji) expect(new Set([x.a, ...x.w]).size).toBe(4)
+  })
+  it('قد إيش تعرفني ورتبها: أربعة خيارات مختلفة دائمًا', () => {
+    for (const x of [...contentBanks.allKnowMe, ...contentBanks.allRank]) {
+      expect(x.o.length).toBe(4)
+      expect(new Set(x.o).size).toBe(4)
+    }
+    for (const x of contentBanks.allCompat) expect(new Set(x.o).size).toBe(x.o.length)
+  })
+  it('عبارات صح أو خطأ غير فارغة', () => {
+    for (const x of contentBanks.allTF) expect(x.s.length).toBeGreaterThan(3)
+    for (const x of contentBanks.allOpenCards) expect(['q', 'd']).toContain(x.k)
+  })
+})

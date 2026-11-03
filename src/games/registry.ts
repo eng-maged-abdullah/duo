@@ -5,6 +5,17 @@ import { knowMeItems } from './content/knowMe'
 import { moreDares, moreTruths } from './content/truthDareMore'
 import { talkMore } from './content/talkMore'
 import { thisOrThatMore } from './content/thisOrThatMore'
+import { completeMore, guessAnswerMore, neverMore, whoMoreMore } from './content/more2'
+import { completeMore2, guessAnswerMore2, neverMore2, whoMoreMore2 } from './content/more3'
+import { askMeMore, completeMore3, guessAnswerMore3, neverMore3, openCardsMore, whoMoreMore3 } from './content/more4'
+import { compatMore, knowMeMore, rankMore } from './content/more5'
+import { personalBank } from './content/personal'
+import { personalBank2, rankMore2 } from './content/more6'
+import { quickQuizMore } from './content/quizMore'
+import { trueFalseMore } from './content/tfMore'
+import { extraBank } from './content/more7'
+import { askMe3, emoji3, quick3, rank3, remember3, riddles3, story3 } from './content/more8'
+import { rank4, riddles4, story4 } from './content/more9'
 import { dares, tdLevels, truths, type TdLevel } from './content/truthDare'
 import { compatItems, neverItems, thisOrThat, whoMore } from './content/choices'
 import { askMeBank, completeItems, guessAnswerItems, rememberPrompts, talkItems } from './content/talk'
@@ -40,7 +51,67 @@ function mcq(rng: Rng, q: string, a: string, w: string[], extra: Partial<ChoiceI
   return { type: 'choice', prompt: q, options, correct: options.indexOf(a), ...extra }
 }
 
+const uniqBy = <T,>(arr: T[], key: (x: T) => string) => {
+  const seen = new Set<string>()
+  return arr.filter((x) => {
+    const k = key(x)
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
 const allThisOrThat: [string, string][] = [...thisOrThat, ...thisOrThatMore]
+const personal = [...personalBank, ...personalBank2, ...extraBank.personal] as { q: string; o: string[] }[]
+const allKnowMe = uniqBy([...knowMeItems, ...(knowMeMore as { q: string; o: string[] }[]), ...personal].filter((x) => x.o.length === 4), (x) => x.q)
+const allCompat = uniqBy([...compatItems, ...(compatMore as { q: string; o: string[] }[]), ...personal].filter((x) => x.o.length >= 2), (x) => x.q)
+const allNever = uniqBy([...neverItems, ...neverMore, ...neverMore2, ...neverMore3], (x) => x.t)
+const allWhoMore = [...new Set([...whoMore, ...whoMoreMore, ...whoMoreMore2, ...whoMoreMore3])]
+const allComplete = [...new Set([...completeItems, ...completeMore, ...completeMore2, ...completeMore3])]
+const allGuess = [...new Set([...guessAnswerItems, ...guessAnswerMore, ...guessAnswerMore2, ...guessAnswerMore3])]
+const allRank = uniqBy([...rankSets, ...(rankMore as { q: string; o: string[] }[]), ...(rankMore2 as { q: string; o: string[] }[]), ...extraBank.rank, ...(rank3 as { q: string; o: string[] }[]), ...(rank4 as { q: string; o: string[] }[])].filter((x) => x.o.length === 4), (x) => x.q)
+const allAskMe: Record<string, string[]> = Object.fromEntries(
+  [...new Set([...Object.keys(askMeBank), ...Object.keys(askMeMore), ...Object.keys(extraBank.askMe)])].map((k) => [
+    k,
+    [...new Set([...(askMeBank[k] ?? []), ...(askMeMore[k] ?? []), ...(extraBank.askMe[k] ?? []), ...(k === 'تعارف' ? askMe3 : [])])],
+  ]),
+)
+const allOpenCards = uniqBy(
+  [
+    ...openCards,
+    ...openCardsMore,
+    ...extraBank.openCards,
+    // بطاقات من صراحة أو تحدي (المستويات الخفيفة) تناسب "افتح السؤال" أيضًا
+    ...[...truths.light, ...truths.funny, ...moreTruths.light, ...moreTruths.funny].map((t) => ({ k: 'q' as const, t })),
+    ...[...dares.light, ...dares.funny, ...moreDares.light, ...moreDares.funny].map((t) => ({ k: 'd' as const, t })),
+  ],
+  (x) => x.t,
+)
+const allQuick = uniqBy([...quickQuiz, ...quickQuizMore, ...extraBank.quick, ...quick3], (x) => x.q)
+const allTF = uniqBy([...trueFalse, ...trueFalseMore, ...extraBank.tf], (x) => x.s)
+const allRiddles = uniqBy([...riddles, ...extraBank.riddles, ...riddles3, ...riddles4], (x) => x.q)
+const allEmoji = uniqBy([...emojiPuzzles, ...extraBank.emoji, ...emoji3], (x) => x.e)
+const allRemember = [...new Set([...rememberPrompts, ...extraBank.remember, ...remember3])]
+const allStory = [...new Set([...storyStarters, ...extraBank.story, ...story3, ...story4])]
+export const contentBanks = { allKnowMe, allCompat, allRank, allQuick, allTF, allRiddles, allEmoji, allOpenCards }
+export const contentStats = {
+  'know-me': allKnowMe.length,
+  'truth-dare': 500,
+  'this-or-that': allThisOrThat.length,
+  compat: allCompat.length,
+  never: allNever.length,
+  'who-more': allWhoMore.length,
+  complete: allComplete.length,
+  'guess-answer': allGuess.length,
+  rank: allRank.length,
+  'ask-me': Object.values(allAskMe).flat().length,
+  'open-card': allOpenCards.length,
+  quick: allQuick.length,
+  sixty: allTF.length,
+  'what-guess': allRiddles.length,
+  emoji: allEmoji.length,
+  remember: allRemember.length,
+  story: allStory.length,
+}
 const allTalk: { c: string; q: string }[] = [...talkItems, ...Object.entries(talkMore).flatMap(([c, qs]) => qs.map((q) => ({ c, q })))]
 
 const items = (s: SummaryCtx) => (s.session.content?.items ?? []) as RoundItem[]
@@ -121,7 +192,7 @@ const defs: GameDef[] = [
       return {
         rounds: n,
         seconds: null,
-        content: { items: pick(knowMeItems, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o], guess: true })) },
+        content: { items: pick(allKnowMe, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o], guess: true })) },
       }
     },
     summarize: (ctx) => {
@@ -234,7 +305,7 @@ const defs: GameDef[] = [
       return {
         rounds: n,
         seconds: null,
-        content: { items: pick(compatItems, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o] })) },
+        content: { items: pick(allCompat, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o] })) },
       }
     },
     summarize: (ctx) => ({ ...matchSummary(ctx, 'نسبة التوافق'), note: 'نتيجة ترفيهية فقط، وليست اختبارًا نفسيًا علميًا.' }),
@@ -288,12 +359,12 @@ const defs: GameDef[] = [
         label: 'الفئة',
         kind: 'select',
         default: 'all',
-        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(neverItems.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
+        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(allNever.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
       },
       roundsOpt('10', ['6', '10', '15']),
     ],
     build: (o, rng) => {
-      const pool = o.cat && o.cat !== 'all' ? neverItems.filter((t) => t.c === o.cat) : neverItems
+      const pool = o.cat && o.cat !== 'all' ? allNever.filter((t) => t.c === o.cat) : allNever
       const sel = pick(pool, N(o, 'rounds', 10), rng)
       return {
         rounds: sel.length,
@@ -333,7 +404,7 @@ const defs: GameDef[] = [
       return {
         rounds: n,
         seconds: null,
-        content: { items: pick(guessAnswerItems, n, rng).map((q): TextItem => ({ type: 'text', prompt: q, guess: true, judge: 'subject', placeholder: 'إجابة قصيرة…' })) },
+        content: { items: pick(allGuess, n, rng).map((q): TextItem => ({ type: 'text', prompt: q, guess: true, judge: 'subject', placeholder: 'إجابة قصيرة…' })) },
       }
     },
     summarize: (ctx) => {
@@ -355,7 +426,7 @@ const defs: GameDef[] = [
     setup: [roundsOpt('12', ['8', '12', '18'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 12)
-      return { rounds: n, seconds: null, content: { items: pick(whoMore, n, rng).map((q): ChoiceItem => ({ type: 'choice', prompt: q, options: [], who: true })) } }
+      return { rounds: n, seconds: null, content: { items: pick(allWhoMore, n, rng).map((q): ChoiceItem => ({ type: 'choice', prompt: q, options: [], who: true })) } }
     },
     summarize: (ctx) => {
       const [p1, p2] = ctx.players.map((p) => p.user_id)
@@ -434,7 +505,7 @@ const defs: GameDef[] = [
     setup: [roundsOpt('10', ['6', '10', '15'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 10)
-      return { rounds: n, seconds: 15, content: { items: pick(quickQuiz, n, rng).map((x) => mcq(rng, x.q, x.a, x.w)) } }
+      return { rounds: n, seconds: 15, content: { items: pick(allQuick, n, rng).map((x) => mcq(rng, x.q, x.a, x.w)) } }
     },
     summarize: (ctx) => quizSummary(ctx, (ms) => 10 + Math.max(0, Math.round(10 * (1 - ms / 15000)))),
   },
@@ -452,7 +523,7 @@ const defs: GameDef[] = [
     setup: [roundsOpt('8', ['5', '8', '12'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 8)
-      return { rounds: n, seconds: null, content: { items: pick(completeItems, n, rng).map((q): TextItem => ({ type: 'text', prompt: q, skippable: true, placeholder: 'كمّل الجملة…' })) } }
+      return { rounds: n, seconds: null, content: { items: pick(allComplete, n, rng).map((q): TextItem => ({ type: 'text', prompt: q, skippable: true, placeholder: 'كمّل الجملة…' })) } }
     },
     summarize: talkSummary,
   },
@@ -470,7 +541,7 @@ const defs: GameDef[] = [
     setup: [roundsOpt('8', ['6', '8', '12'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 8)
-      return { rounds: n, seconds: 25, content: { items: pick(riddles, n, rng).map((x) => mcq(rng, x.q, x.a, x.w)) } }
+      return { rounds: n, seconds: 25, content: { items: pick(allRiddles, n, rng).map((x) => mcq(rng, x.q, x.a, x.w)) } }
     },
     summarize: (ctx) => quizSummary(ctx, () => 1, 'إجابة صحيحة'),
   },
@@ -487,7 +558,7 @@ const defs: GameDef[] = [
     mode: 'sprint',
     renderer: 'sprint',
     build: (_o, rng) => {
-      const sel = pick(trueFalse, 30, rng)
+      const sel = pick(allTF, 30, rng)
       return { rounds: sel.length, seconds: 60, content: { items: sel.map((x): ChoiceItem => ({ type: 'choice', prompt: x.s, options: ['صح ✅', 'خطأ ❌'], correct: x.a ? 0 : 1 })) } }
     },
     summarize: (ctx) => {
@@ -523,7 +594,7 @@ const defs: GameDef[] = [
     ],
     build: (o, rng) => {
       const n = N(o, 'cards', 12)
-      return { rounds: n, seconds: null, content: { cards: pick(openCards, n, rng) } }
+      return { rounds: n, seconds: null, content: { cards: pick(allOpenCards, n, rng) } }
     },
     summarize: (ctx) => {
       const opened = emptyScores(ctx.players)
@@ -593,7 +664,7 @@ const defs: GameDef[] = [
     ],
     build: (o, rng) => {
       const total = N(o, 'lines', 10)
-      return { rounds: total, seconds: null, content: { total, starter: pick(storyStarters, 1, rng)[0] } }
+      return { rounds: total, seconds: null, content: { total, starter: pick(allStory, 1, rng)[0] } }
     },
     summarize: (ctx) => {
       const lines = ctx.moves.filter((m) => m.move.kind === 'line')
@@ -614,7 +685,7 @@ const defs: GameDef[] = [
     setup: [roundsOpt('6', ['4', '6', '10'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 6)
-      return { rounds: n, seconds: null, content: { items: pick(rankSets, n, rng).map((x): RankItem => ({ type: 'rank', prompt: x.q, options: [...x.o] })) } }
+      return { rounds: n, seconds: null, content: { items: pick(allRank, n, rng).map((x): RankItem => ({ type: 'rank', prompt: x.q, options: [...x.o] })) } }
     },
     summarize: (ctx) => {
       const [p1, p2] = ctx.players.map((p) => p.user_id)
@@ -646,7 +717,7 @@ const defs: GameDef[] = [
         label: 'نوع الأسئلة',
         kind: 'select',
         default: 'all',
-        options: [{ value: 'all', label: 'منوّع' }, ...Object.keys(askMeBank).map((k) => ({ value: k, label: k }))],
+        options: [{ value: 'all', label: 'منوّع' }, ...Object.keys(allAskMe).map((k) => ({ value: k, label: k }))],
       },
       roundsOpt('6', ['4', '6', '10']),
       { key: 'custom', label: 'أسئلتك الخاصة (اختياري — سؤال في كل سطر)', kind: 'textarea', placeholder: 'مثال: وش أكثر شي تحبه في نهاية الأسبوع؟', maxLines: 5, maxLen: 140 },
@@ -658,7 +729,7 @@ const defs: GameDef[] = [
         .map((s) => s.trim().slice(0, 140))
         .filter(Boolean)
         .slice(0, 5)
-      const pool = o.cat && o.cat !== 'all' && askMeBank[o.cat] ? askMeBank[o.cat] : Object.values(askMeBank).flat()
+      const pool = o.cat && o.cat !== 'all' && allAskMe[o.cat] ? allAskMe[o.cat] : Object.values(allAskMe).flat()
       const qs = [...custom.map((q) => ({ q, tag: 'سؤال خاص' })), ...pick(pool, Math.max(0, n - custom.length), rng).map((q) => ({ q, tag: o.cat !== 'all' ? o.cat : undefined }))]
       return {
         rounds: qs.length,
@@ -682,7 +753,7 @@ const defs: GameDef[] = [
     setup: [roundsOpt('8', ['6', '8', '12'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 8)
-      return { rounds: n, seconds: 25, content: { items: pick(emojiPuzzles, n, rng).map((x) => mcq(rng, 'وش تعني هذي الرموز؟', x.a, x.w, { big: x.e })) } }
+      return { rounds: n, seconds: 25, content: { items: pick(allEmoji, n, rng).map((x) => mcq(rng, 'وش تعني هذي الرموز؟', x.a, x.w, { big: x.e })) } }
     },
     summarize: (ctx) => quizSummary(ctx, () => 1, 'إجابة صحيحة'),
   },
@@ -717,7 +788,7 @@ const defs: GameDef[] = [
     ],
     build: (o, rng) => {
       const n = N(o, 'n', 4)
-      const ps = pick(rememberPrompts, n, rng)
+      const ps = pick(allRemember, n, rng)
       const share: TextItem[] = ps.map((q) => ({ type: 'text', prompt: q, tag: 'شارك', placeholder: 'إجابة قصيرة وواضحة…' }))
       const order = shuffle(
         ps.map((_, i) => i),
