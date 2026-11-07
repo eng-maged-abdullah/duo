@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Copy, DoorOpen, Loader2, MessageCircle, Share2, Sparkles, Wifi, WifiOff } from 'lucide-react'
+import { Copy, DoorOpen, Flame, Heart, Loader2, MessageCircle, Moon, Share2, Sparkles, Wifi, WifiOff } from 'lucide-react'
 import { RoomProvider, useRoom } from '../lib/rooms/RoomProvider'
 import { normalizeCode, roomsApi } from '../lib/rooms/api'
-import { games, gameById, categories } from '../games/registry'
+import { games, gameById, categories, suggestedGame } from '../games/registry'
+import { nightById, nights, type Night } from '../games/nights'
+import { stakeList } from '../games/content/v2/voice'
+import { CornerSheet, useDaily, type CornerTab } from '../components/room/Corner'
 import type { CategoryId, GameDef } from '../games/types'
 import { GameHost, Results } from '../games/GameHost'
 import { ChatPanel } from '../components/chat/ChatPanel'
@@ -56,6 +59,7 @@ export function RoomScreen({ code }: { code: string }) {
   const toast = useToast()
   const [chat, setChat] = useState(false)
   const [leaveOpen, setLeaveOpen] = useState(false)
+  const [corner, setCorner] = useState<CornerTab | null>(null)
   const [dismissed, setDismissed] = useState<string | null>(null)
   const prevPlayers = useRef<number | null>(null)
   const seenAbandon = useRef<string | null>(null)
@@ -127,6 +131,9 @@ export function RoomScreen({ code }: { code: string }) {
           </button>
           <ConnectionPill />
           <div className="flex-1" />
+          <IconButton label="ركننا" onClick={() => setCorner('daily')}>
+            <Heart className="size-5" />
+          </IconButton>
           <IconButton label={t('chat')} onClick={() => setChat((v) => !v)} badge={r.unread} active={chat}>
             <MessageCircle className="size-5" />
           </IconButton>
@@ -145,13 +152,13 @@ export function RoomScreen({ code }: { code: string }) {
             <motion.div key={view + (s?.id ?? '')} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }}>
               {view === 'game' && <GameHost />}
               {view === 'results' && <ResultsView onMenu={() => setDismissed(s!.id)} />}
-              {view === 'lobby' && <Lobby code={code} />}
+              {view === 'lobby' && <Lobby code={code} openCorner={(tab) => setCorner(tab)} />}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      {!chat && (
+      {!chat && !(view === 'game' && ['drawguess', 'drawdescribe', 'drawcontinue'].includes(gameById(s?.game_id)?.renderer ?? '')) && (
         <button
           onClick={() => setChat(true)}
           className="lg:hidden fixed z-30 bottom-[max(1rem,var(--safe-bottom))] end-4 size-14 rounded-2xl btn-primary grid place-items-center shadow-2xl"
@@ -159,16 +166,17 @@ export function RoomScreen({ code }: { code: string }) {
         >
           <MessageCircle className="size-6" />
           {r.unread > 0 && (
-            <span className="absolute -top-1.5 -end-1.5 min-w-6 h-6 px-1 rounded-full bg-white text-night-950 text-xs font-bold leading-6">{r.unread > 9 ? '9+' : r.unread}</span>
+            <span className="absolute -top-1.5 -end-1.5 min-w-6 h-6 px-1 rounded-full bg-rose-500 text-[#fff] text-xs font-bold leading-6 ring-2 ring-night-950">{r.unread > 9 ? '9+' : r.unread}</span>
           )}
         </button>
       )}
       <ChatPanel open={chat} onClose={() => setChat(false)} />
+      <CornerSheet open={corner !== null} initial={corner ?? 'daily'} onClose={() => setCorner(null)} />
 
       <Sheet open={leaveOpen} onClose={() => setLeaveOpen(false)} title="خيارات الغرفة">
         <div className="space-y-3">
           <Button variant="glass" block onClick={() => nav('/')}>
-            الرجوع للرئيسية (تبقى الغرفة محفوظة)
+            الرجوع للرئيسية (الغرفة تبقى ساعة)
           </Button>
           {r.isHost ? (
             <>
@@ -228,7 +236,7 @@ function useStarter() {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const reqRef = useRef<{ key: string; id: string } | null>(null)
-  const start = async (g: GameDef, opts: Record<string, string>, key: string) => {
+  const start = async (g: GameDef, opts: Record<string, string>, key: string, extra: Record<string, unknown> = {}) => {
     if (busy || !r.room) return false
     // معرف ثابت للطلب: الضغط المتكرر لا ينشئ جلستين
     if (!reqRef.current || reqRef.current.key !== key) reqRef.current = { key, id: uuid() }
@@ -246,7 +254,7 @@ function useStarter() {
         mode: g.mode,
         rounds: built.rounds,
         seconds: built.seconds,
-        content: built.content,
+        content: { ...built.content, ...(opts.stake?.trim() ? { stake: opts.stake.trim().slice(0, 90) } : {}), ...extra },
       })
       if (!res.ok) {
         toast(errorText(res.error), 'error')
@@ -270,17 +278,130 @@ function ResultsView({ onMenu }: { onMenu: () => void }) {
   const { start, busy } = useStarter()
   const g = gameById(r.session?.game_id)
   const replayKey = useMemo(() => `replay:${r.session?.id}`, [r.session?.id])
-  return <Results replayBusy={busy} onMenu={onMenu} onReplay={() => g && void start(g, lastOpts.get(g.id) ?? {}, replayKey)} />
+  const night = r.session?.content?.night as { id: string; step: number } | undefined
+  const onNightNext = () => {
+    const n = nightById(night?.id)
+    const st = n?.steps[(night?.step ?? 0) + 1]
+    const def = st ? gameById(st.game) : undefined
+    if (!n || !st || !def) return
+    void start(def, { ...st.opts, stake: (r.session?.content?.stake as string) ?? '' }, `night:${r.session?.id}`, { night: { id: n.id, step: (night?.step ?? 0) + 1 } })
+  }
+  return (
+    <Results
+      replayBusy={busy}
+      onMenu={onMenu}
+      onNightNext={night ? onNightNext : undefined}
+      onReplay={() => g && void start(g, { ...(lastOpts.get(g.id) ?? {}), stake: (r.session?.content?.stake as string) ?? lastOpts.get(g.id)?.stake ?? '' }, replayKey)}
+    />
+  )
 }
 
-function Lobby({ code }: { code: string }) {
+/* ------------------------------ سؤال اليوم ------------------------------ */
+function DailyCard({ onOpen }: { onOpen: () => void }) {
+  const { partner } = useRoom()
+  const { q, data } = useDaily()
+  const status = !data ? '…' : data.mine && data.theirs ? 'جاوبتوا الاثنين 💞 شوفوا الإجابات' : data.mine ? `جاوبت ✓ بانتظار ${partner?.nickname ?? 'شريكك'}` : data.their_done ? `${partner?.nickname ?? 'شريكك'} جاوب — دورك! 👀` : 'ما أحد جاوب لين الحين'
+  return (
+    <button onClick={onOpen} className="w-full mb-4 text-start glass rounded-[1.5rem] p-4 flex items-center gap-3 hover:bg-white/10">
+      <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-iris-500/40 to-frost-500/30 text-2xl">💭</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 text-xs text-mist">
+          سؤال اليوم
+          {data && data.streak > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-champagne">
+              <Flame className="size-3.5" /> {data.streak}
+            </span>
+          )}
+        </span>
+        <span className="block font-medium truncate mt-0.5">{q?.q}</span>
+        <span className="block text-xs text-mist mt-0.5">{status}</span>
+      </span>
+    </button>
+  )
+}
+
+/* ------------------------------ وضع السهرة ------------------------------ */
+function NightPicker({ canStart, busy, onStart }: { canStart: boolean; busy: boolean; onStart: (n: Night, stake: string) => void }) {
+  const [open, setOpen] = useState<Night | null>(null)
+  const [stake, setStake] = useState('')
+  return (
+    <section className="mb-6">
+      <div className="flex items-end justify-between mb-3">
+        <h2 className="font-display text-xl font-semibold flex items-center gap-2">
+          <Moon className="size-5 text-champagne" /> وضع السهرة
+        </h2>
+        <span className="text-xs text-mist">ألعاب مرتبة تمشي لحالها</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto scrollbar-none snap-x pb-2 -mx-1 px-1">
+        {nights.map((n) => (
+          <button
+            key={n.id}
+            onClick={() => {
+              setOpen(n)
+              setStake('')
+            }}
+            className="on-color snap-start shrink-0 w-[70%] sm:w-[240px] relative overflow-hidden rounded-[1.5rem] p-4 text-start min-h-32 text-white"
+            style={{ background: `linear-gradient(135deg, ${n.accent[0]}, ${n.accent[1]})` }}
+          >
+            <span className="text-3xl">{n.emoji}</span>
+            <span className="block font-display text-lg font-semibold mt-1">{n.title}</span>
+            <span className="block text-[13px] opacity-90 leading-snug">{n.desc}</span>
+            <span className="block text-[11px] opacity-80 mt-1.5">
+              {n.steps.length} ألعاب · {n.minutes}
+            </span>
+          </button>
+        ))}
+      </div>
+      <Sheet open={open !== null} onClose={() => setOpen(null)} title={open ? `${open.emoji} ${open.title}` : ''}>
+        {open && (
+          <>
+            <p className="text-mist mb-3">{open.desc}. بعد كل لعبة تنتقلون للي بعدها بضغطة.</p>
+            <ol className="space-y-2 mb-5">
+              {open.steps.map((st, i) => {
+                const g = gameById(st.game)
+                return (
+                  <li key={i} className="flex items-center gap-3 glass rounded-2xl px-3 py-2.5">
+                    <span className="grid size-7 place-items-center rounded-full bg-iris-500/20 text-iris-300 text-xs font-bold">{i + 1}</span>
+                    <span className="text-xl">{g?.emoji}</span>
+                    <span className="font-medium">{g?.title}</span>
+                    {g?.voice && <span className="text-xs">🎙️</span>}
+                  </li>
+                )
+              })}
+            </ol>
+            {canStart && (
+              <>
+                <p className="text-sm text-mist mb-1.5">🎲 رهان السهرة (اختياري — على خسران كل لعبة)</p>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <button onClick={() => setStake('')} className={`rounded-xl px-3 py-1.5 text-sm ${!stake ? 'btn-primary text-white' : 'glass'}`}>
+                    بدون
+                  </button>
+                  <button onClick={() => setStake(stakeList[Math.floor(Math.random() * stakeList.length)])} className={`rounded-xl px-3 py-1.5 text-sm ${stake ? 'btn-primary text-white' : 'glass'}`}>
+                    رهان عشوائي 🎲
+                  </button>
+                </div>
+                {stake && <p className="text-sm text-champagne mb-3">{stake}</p>}
+                <Button variant="primary" size="lg" block loading={busy} onClick={() => onStart(open, stake)}>
+                  ابدأ السهرة 🌙
+                </Button>
+              </>
+            )}
+            {!canStart && <p className="text-center text-sm text-mist">منشئ الغرفة يبدأ السهرة.</p>}
+          </>
+        )}
+      </Sheet>
+    </section>
+  )
+}
+
+function Lobby({ code, openCorner }: { code: string; openCorner: (tab: CornerTab) => void }) {
   const r = useRoom()
   const toast = useToast()
   const [cat, setCat] = useState<CategoryId | 'all'>('all')
   const [selected, setSelected] = useState<GameDef | undefined>()
   const [sheet, setSheet] = useState(false)
   const { start, busy } = useStarter()
-  const suggested = gameById(r.room?.current_game)
+  const suggested = suggestedGame(r.room?.current_game)
   const list = cat === 'all' ? games : games.filter((g) => g.categories.includes(cat))
   const sheetKey = useMemo(() => `${selected?.id}:${Date.now()}`, [selected, sheet]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -340,8 +461,22 @@ function Lobby({ code }: { code: string }) {
         </section>
       )}
 
+      {r.partner && <DailyCard onOpen={() => openCorner('daily')} />}
+
+      {r.partner && (
+        <NightPicker
+          canStart={r.isHost}
+          busy={busy}
+          onStart={(n, stake) => {
+            const st = n.steps[0]
+            const g = gameById(st.game)
+            if (g) void start(g, { ...st.opts, stake }, `night0:${n.id}:${Date.now()}`, { night: { id: n.id, step: 0 } })
+          }}
+        />
+      )}
+
       {suggested && r.partner && (
-        <button onClick={() => openGame(suggested)} className="w-full mb-6 flex items-center gap-3 rounded-2xl bg-gradient-to-l from-rose-500/20 to-iris-500/20 border border-white/10 px-4 py-3 text-start">
+        <button onClick={() => openGame(suggested)} className="w-full mb-6 flex items-center gap-3 rounded-2xl bg-gradient-to-l from-frost-500/20 to-iris-500/20 border border-white/10 px-4 py-3 text-start">
           <Sparkles className="size-5 text-champagne shrink-0" />
           <span className="flex-1 text-sm">
             اللعبة المقترحة: <b>{suggested.title}</b>

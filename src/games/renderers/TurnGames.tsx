@@ -61,7 +61,7 @@ export function TruthDareGame({ def }: { def: GameDef }) {
                   صراحة
                   <span className="block text-4xl mt-2">🗣️</span>
                 </motion.button>
-                <motion.button whileTap={{ scale: 0.96 }} disabled={api.busy} onClick={() => pick('dare')} className="min-h-40 rounded-[1.75rem] bg-gradient-to-br from-rose-500/40 to-rose-500/10 border border-rose-400/30 font-display text-2xl">
+                <motion.button whileTap={{ scale: 0.96 }} disabled={api.busy} onClick={() => pick('dare')} className="min-h-40 rounded-[1.75rem] bg-gradient-to-br from-frost-500/40 to-frost-500/10 border border-frost-400/30 font-display text-2xl">
                   تحدي
                   <span className="block text-4xl mt-2">🔥</span>
                 </motion.button>
@@ -277,7 +277,7 @@ export function MemoryGame({ def }: { def: GameDef }) {
               aria-label={show && v !== undefined ? c.symbols[v] : `بطاقة ${i + 1}`}
             >
               <span className="block pb-[100%]" aria-hidden />
-              <span className="absolute inset-0 grid place-items-center rounded-2xl border border-iris-400/30 bg-gradient-to-br from-iris-500/20 to-rose-500/10 [backface-visibility:hidden] text-iris-300/70 text-xl">✦</span>
+              <span className="absolute inset-0 grid place-items-center rounded-2xl border border-iris-400/30 bg-gradient-to-br from-iris-500/20 to-frost-500/10 [backface-visibility:hidden] text-iris-300/70 text-xl">✦</span>
               <span
                 className={`absolute inset-0 grid place-items-center rounded-2xl text-3xl sm:text-4xl [backface-visibility:hidden] [transform:rotateY(180deg)] ${
                   matched.has(i) ? 'bg-emerald-500/15 border border-emerald-400/30' : 'bg-white/10 border border-white/15'

@@ -49,9 +49,9 @@ const ans = (round: number, player: string, answer: Record<string, unknown>, jud
 })
 
 describe('كل الألعاب', () => {
-  it('عشرون لعبة بمعرفات فريدة', () => {
-    expect(games.length).toBe(20)
-    expect(new Set(games.map((g) => g.id)).size).toBe(20)
+  it('٣٤ لعبة بمعرفات فريدة', () => {
+    expect(games.length).toBe(34)
+    expect(new Set(games.map((g) => g.id)).size).toBe(34)
     for (const g of games) expect(g.id).toMatch(/^[a-z0-9_-]{2,32}$/)
   })
 
@@ -64,14 +64,24 @@ describe('كل الألعاب', () => {
           const b = g.build(v, seededRng(seed))
           expect(b.rounds).toBeGreaterThanOrEqual(1)
           expect(b.rounds).toBeLessThanOrEqual(60)
-          const size = new TextEncoder().encode(JSON.stringify(b.content)).length
+          const { _secrets, ...pub } = b.content as Record<string, unknown>
+          const size = new TextEncoder().encode(JSON.stringify(pub)).length
           expect(size).toBeLessThan(50000)
+          if (_secrets) {
+            const sec = _secrets as { slot: string; owner: string; value: unknown }[]
+            expect(sec.length).toBeLessThanOrEqual(80)
+            for (const x of sec) {
+              expect(x.slot).toMatch(/^[a-z0-9_]{1,40}$/)
+              expect(['first', 'second', 'none']).toContain(x.owner)
+              expect(new TextEncoder().encode(JSON.stringify(x.value)).length).toBeLessThan(5500)
+            }
+          }
           if (g.mode === 'sprint') expect(b.seconds).toBeTruthy()
           const items = b.content.items as RoundItem[] | undefined
           if (g.mode !== 'turns') {
             expect(items?.length).toBe(b.rounds)
             for (const it of items!) {
-              expect(it.prompt.length).toBeGreaterThan(2)
+              if ((it as { type: string }).type !== 'reflex') expect(it.prompt.length).toBeGreaterThan(2)
               if (it.type === 'choice' && !it.who) {
                 expect(it.options.length).toBeGreaterThanOrEqual(2)
                 expect(new Set(it.options).size).toBe(it.options.length)
@@ -93,8 +103,8 @@ describe('كل الألعاب', () => {
     }
   })
 
-  it('اسألني: الأسئلة الخاصة تأتي أولًا ومحدودة بخمسة', () => {
-    const g = gameById('ask-me')!
+  it('سوالف: الأسئلة الخاصة تأتي أولًا ومحدودة بخمسة', () => {
+    const g = gameById('talk')!
     const b = g.build({ rounds: '6', custom: 'س1\nس2\n\nس3\nس4\nس5\nس6', cat: 'all' }, seededRng(1))
     const items = b.content.items as RoundItem[]
     expect(items.slice(0, 5).map((i) => i.prompt)).toEqual(['س1', 'س2', 'س3', 'س4', 'س5'])
@@ -102,11 +112,11 @@ describe('كل الألعاب', () => {
   })
 
   it('تذكر التفاصيل: كل جولة تذكّر تشير إلى جولة مشاركة صحيحة', () => {
-    const b = gameById('remember')!.build({ n: '4' }, seededRng(3))
+    const b = gameById('know-me')!.build({ style: 'memory', rounds: '10' }, seededRng(3))
     const items = b.content.items as RoundItem[]
-    expect(items.length).toBe(8)
-    const recalls = items.slice(4)
-    expect(recalls.map((r) => (r.type === 'text' ? r.recallOf : 0)).sort()).toEqual([1, 2, 3, 4])
+    expect(items.length).toBe(10)
+    const recalls = items.slice(5)
+    expect(recalls.map((r) => (r.type === 'text' ? r.recallOf : 0)).sort()).toEqual([1, 2, 3, 4, 5])
     recalls.forEach((r) => r.type === 'text' && expect(r.prompt).toBe(items[r.recallOf! - 1].prompt))
   })
 })
@@ -115,8 +125,9 @@ describe('احتساب النتائج', () => {
   it('قد إيش تعرفني: النقطة للمتوقع فقط وتتبدل الأدوار', () => {
     expect(subjectOf(1, players)).toBe(A)
     expect(subjectOf(2, players)).toBe(B)
+    const items = [1, 2, 3].map(() => ({ type: 'choice', prompt: 'x', options: ['a', 'b', 'c', 'd'], guess: true }))
     const sum = gameById('know-me')!.summarize({
-      session: session('know-me', {}),
+      session: session('know-me', { items }),
       players,
       moves: [],
       answers: [ans(1, A, { choice: 2 }), ans(1, B, { choice: 2 }), ans(2, B, { choice: 1 }), ans(2, A, { choice: 3 }), ans(3, A, { choice: 0 }), ans(3, B, { choice: 0 })],
@@ -127,7 +138,7 @@ describe('احتساب النتائج', () => {
   it('جاوب بسرعة: صحيح + نقاط سرعة، والخطأ صفر', () => {
     const content = { items: [{ type: 'choice', prompt: 'x', options: ['a', 'b'], correct: 1 }] }
     const sum = gameById('quick')!.summarize({
-      session: session('quick', content),
+      session: session('quick', content, { round_seconds: 15 }),
       players,
       moves: [],
       answers: [ans(1, A, { choice: 1, _ms: 0 }), ans(1, B, { choice: 0, _ms: 100 })],
@@ -135,9 +146,10 @@ describe('احتساب النتائج', () => {
     expect(sum.scores).toEqual({ [A]: 20, [B]: 0 })
   })
 
-  it('اختار واحد: نسبة التطابق تتجاهل التخطي', () => {
-    const sum = gameById('this-or-that')!.summarize({
-      session: session('this-or-that', {}),
+  it('ذوقنا: نسبة التطابق تتجاهل التخطي', () => {
+    const items = [1, 2, 3].map(() => ({ type: 'choice', prompt: 'x', options: ['a', 'b'] }))
+    const sum = gameById('taste')!.summarize({
+      session: session('taste', { items }),
       players,
       moves: [],
       answers: [ans(1, A, { choice: 0 }), ans(1, B, { choice: 0 }), ans(2, A, { choice: 1 }), ans(2, B, { choice: 0 }), ans(3, A, { skip: true }), ans(3, B, { choice: 1 })],
@@ -156,9 +168,10 @@ describe('احتساب النتائج', () => {
     expect(sum.scores![A]).toBe(1)
   })
 
-  it('توقع جوابي: الحكم الصحيح فقط يعطي نقطة', () => {
-    const sum = gameById('guess-answer')!.summarize({
-      session: session('guess-answer', {}),
+  it('قد إيش تعرفني (كتابة): الحكم الصحيح فقط يعطي نقطة', () => {
+    const items = [1, 2].map(() => ({ type: 'text', prompt: 'x', guess: true, judge: 'subject' }))
+    const sum = gameById('know-me')!.summarize({
+      session: session('know-me', { items }),
       players,
       moves: [],
       answers: [ans(1, A, { text: 'قهوة' }), ans(1, B, { text: 'قهوة' }, true), ans(2, B, { text: 'شاي' }), ans(2, A, { text: 'عصير' }, false)],
@@ -214,30 +227,32 @@ describe('منع التكرار', () => {
   })
 })
 
-import { contentBanks, contentStats } from '../../src/games/registry'
+import { contentStats } from '../../src/games/registry'
+import * as banks from '../../src/games/banks'
 
 describe('بنوك المحتوى', () => {
-  it('كل لعبة أسئلة فيها 500 أو أكثر (والألغاز والرموز وتذكر التفاصيل والقصص 150+)', () => {
-    const small = ['what-guess', 'emoji', 'remember', 'story']
-    for (const [id, n] of Object.entries(contentStats)) expect(n).toBeGreaterThanOrEqual(small.includes(id) ? 150 : 500)
+  it('كل لعبة أسئلة فيها 500 أو أكثر (والرموز والقصص 150+)', () => {
+    const small = ['emoji', 'story']
+    for (const [id, n] of Object.entries(contentStats)) expect(n, id).toBeGreaterThanOrEqual(small.includes(id) ? 150 : 500)
   })
   it('أسئلة الإجابة الصحيحة: 4 خيارات مختلفة والإجابة ليست ضمن الخطأ', () => {
-    for (const x of [...contentBanks.allQuick, ...contentBanks.allRiddles]) {
+    for (const x of [...banks.allQuick, ...banks.allRiddles]) {
       const opts = [x.a, ...x.w]
       expect(opts.every((o) => typeof o === 'string' && o.length > 0)).toBe(true)
       expect(new Set(opts).size).toBe(4)
     }
-    for (const x of contentBanks.allEmoji) expect(new Set([x.a, ...x.w]).size).toBe(4)
+    for (const x of banks.allEmoji) expect(new Set([x.a, ...x.w]).size).toBe(4)
   })
-  it('قد إيش تعرفني ورتبها: أربعة خيارات مختلفة دائمًا', () => {
-    for (const x of [...contentBanks.allKnowMe, ...contentBanks.allRank]) {
+  it('قد إيش تعرفني وذوقنا: أربعة خيارات مختلفة دائمًا', () => {
+    for (const x of [...banks.allKnowMe, ...banks.allRank]) {
       expect(x.o.length).toBe(4)
       expect(new Set(x.o).size).toBe(4)
     }
-    for (const x of contentBanks.allCompat) expect(new Set(x.o).size).toBe(x.o.length)
+    for (const x of banks.allCompat) expect(new Set(x.o).size).toBe(x.o.length)
   })
-  it('عبارات صح أو خطأ غير فارغة', () => {
-    for (const x of contentBanks.allTF) expect(x.s.length).toBeGreaterThan(3)
-    for (const x of contentBanks.allOpenCards) expect(['q', 'd']).toContain(x.k)
+  it('عبارات صح أو خطأ غير فارغة، وسوالف بدون تكرار', () => {
+    for (const x of banks.allTF) expect(x.s.length).toBeGreaterThan(3)
+    expect(new Set(banks.allTalk.map((t) => t.q)).size).toBe(banks.allTalk.length)
+    expect(banks.allWhoMoreBold.length).toBeGreaterThan(70)
   })
 })

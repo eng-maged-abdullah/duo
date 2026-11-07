@@ -10,8 +10,10 @@ import '@fontsource/readex-pro/latin-600.css'
 import './styles/index.css'
 import { App } from './app/App'
 import { applyTheme } from './lib/theme'
+import { initInstallPrompt } from './lib/pwa'
 
 applyTheme()
+initInstallPrompt()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

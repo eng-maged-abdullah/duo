@@ -29,7 +29,7 @@ export const ar = {
   sending: 'جارٍ الإرسال',
   failed_send: 'لم تُرسل',
   back_to_game: 'العودة إلى اللعبة',
-  room_expiry_note: 'الغرفة محفوظة ولا تُحذف إلا إذا حذفها منشئها',
+  room_expiry_note: 'الغرفة تنحذف تلقائيًا إذا ما دخلها أحد لمدة ساعة',
 
   err_no_session: 'تعذّر إنشاء هويتك المؤقتة. تأكد من الإنترنت وحاول مجددًا.',
   err_anon_disabled: 'تسجيل الدخول المجهول غير مفعّل في Supabase. فعّله من Authentication → Sign In / Providers.',
@@ -57,6 +57,8 @@ export const ar = {
   err_not_ready: 'انتظر اكتمال الجولة.',
   err_bad_request: 'طلب غير صالح.',
   err_try_again: 'حدث تعارض بسيط، حاول مرة أخرى.',
+  err_not_allowed: 'ما تقدر تسوي هذا.',
+  err_need_update: 'قاعدة البيانات تحتاج تحديث: شغّل ملف التحديث الجديد (games_v2) في Supabase ← SQL Editor.',
   err_network: 'تعذّر الوصول إلى الخادم. تحقق من الإنترنت.',
   err_unknown: 'حدث خطأ غير متوقع. حاول مرة أخرى.',
 }

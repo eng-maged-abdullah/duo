@@ -3,7 +3,34 @@ import type { Rng } from '../utils/random'
 
 export type CategoryId = 'acquaint' | 'laugh' | 'romance' | 'compete' | 'memory' | 'deep' | 'quick'
 
-export type RendererId = 'pair' | 'sprint' | 'truthdare' | 'opencard' | 'story' | 'memory' | 'number'
+export type RendererId =
+  | 'pair'
+  | 'sprint'
+  | 'truthdare'
+  | 'story'
+  | 'memory'
+  | 'number'
+  | 'drawguess'
+  | 'drawdescribe'
+  | 'drawcontinue'
+  | 'cards' // الكلمة الممنوعة + مثّلها بالصوت
+  | 'hum'
+  | 'twotruths'
+  | 'wordrace'
+  | 'nolaugh'
+  | 'forbidden'
+  | 'tongue'
+  | 'rated' // أغبى إجابة
+  | 'twenty'
+  | 'reflex'
+  | 'compliments'
+  | 'dream'
+  | 'bet'
+  | 'liar'
+  | 'dots'
+  | 'connect4'
+  | 'chain'
+  | 'vault'
 
 export type ChoiceItem = {
   type: 'choice'
@@ -66,6 +93,10 @@ export type GameDef = {
   minutes: string
   badge?: 'new' | 'popular'
   featured?: boolean
+  /** يدعم الرهان على الخسران */
+  stakes?: boolean
+  /** يحتاج مكالمة صوتية ليكون ممتع */
+  voice?: boolean
   howTo: string[]
   mode: GameMode
   renderer: RendererId

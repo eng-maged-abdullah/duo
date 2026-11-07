@@ -3,7 +3,7 @@
  * - الصفحة الرئيسية تُجلب من الشبكة أولًا حتى تصل التحديثات فورًا.
  * - لا يلمس أي طلب إلى Supabase أو أي نطاق خارجي: حالة الغرف والرسائل دائمًا حيّة.
  */
-const VERSION = 'duo-v1'
+const VERSION = 'duo-v3'
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg']
 
 self.addEventListener('install', (e) => {

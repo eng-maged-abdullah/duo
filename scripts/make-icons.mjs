@@ -19,7 +19,7 @@ for (const [name, size] of [
 
 // أيقونة maskable: الشعار داخل منطقة آمنة 80% على خلفية كاملة
 const inner = await sharp(svg, { density: 384 }).resize(400, 400).png().toBuffer()
-await sharp({ create: { width: 512, height: 512, channels: 4, background: '#0d0714' } })
+await sharp({ create: { width: 512, height: 512, channels: 4, background: '#000100' } })
   .composite([{ input: inner, top: 56, left: 56 }])
   .png()
   .toFile(out('icon-maskable-512.png'))

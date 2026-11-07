@@ -53,6 +53,7 @@ export type Answer = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   answer: any
   judged: boolean | null
+  rating?: number | null
   created_at: string
 }
 

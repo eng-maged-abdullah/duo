@@ -50,6 +50,8 @@ const errorKeys: Record<string, keyof Dict> = {
   bad_request: 'err_bad_request',
   try_again: 'err_try_again',
   network: 'err_network',
+  not_allowed: 'err_not_allowed',
+  need_update: 'err_need_update',
 }
 
 export function errorText(code: string | undefined): string {

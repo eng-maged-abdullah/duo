@@ -33,6 +33,11 @@ export function GameCard({ g, onClick, selected, compact }: { g: GameDef; onClic
                 {g.badge === 'new' ? 'جديد' : 'رائج'}
               </span>
             )}
+            {g.voice && (
+              <span className="shrink-0 text-[11px]" title="أحلى بالمكالمة الصوتية" aria-label="أحلى بالمكالمة">
+                🎙️
+              </span>
+            )}
           </div>
           <p className="text-[13px] text-mist mt-1 leading-snug line-clamp-2">{g.tagline}</p>
           {!compact && (

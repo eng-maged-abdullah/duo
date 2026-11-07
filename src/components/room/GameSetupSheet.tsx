@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Play } from 'lucide-react'
 import type { GameDef } from '../../games/types'
+import { stakeList } from '../../games/content/v2/voice'
 import { Sheet } from '../ui/Sheet'
 import { Button } from '../ui/Button'
 
@@ -27,11 +28,13 @@ export function GameSetupSheet({
   busy?: boolean
 }) {
   const [opts, setOpts] = useState<Record<string, string>>({})
+  const [stakeMode, setStakeMode] = useState<'none' | 'list' | 'custom'>('none')
   useEffect(() => {
     if (!game) return
     const d: Record<string, string> = {}
     for (const o of game.setup ?? []) if (o.kind === 'select') d[o.key] = o.default
     setOpts(d)
+    setStakeMode('none')
   }, [game])
   if (!game) return null
 
@@ -100,6 +103,51 @@ export function GameSetupSheet({
           )}
         </div>
       ) : null}
+
+      {game.voice && <p className="mb-4 rounded-2xl bg-champagne/10 border border-champagne/20 px-3 py-2 text-[13px] text-champagne">🎙️ هذي اللعبة أحلى وأنتم بالمكالمة الصوتية.</p>}
+
+      {canStart && game.stakes && (
+        <div className="mb-5">
+          <span className="text-sm text-mist">🎲 رهان على الخسران (اختياري)</span>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {(
+              [
+                ['none', 'بدون رهان'],
+                ['list', 'رهان جاهز 🎲'],
+                ['custom', 'رهان من عندي ✍️'],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setStakeMode(k)
+                  setOpts((x) => ({ ...x, stake: k === 'list' ? stakeList[Math.floor(Math.random() * stakeList.length)] : '' }))
+                }}
+                className={`rounded-xl px-3 py-2 text-sm ${stakeMode === k ? 'btn-primary text-white' : 'glass hover:bg-white/10'}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          {stakeMode === 'list' && (
+            <div className="mt-2 max-h-44 overflow-y-auto space-y-1.5 pe-1">
+              {stakeList.map((x) => (
+                <button key={x} onClick={() => setOpts((o) => ({ ...o, stake: x }))} className={`w-full text-start rounded-xl px-3 py-2 text-[14px] ${opts.stake === x ? 'bg-champagne/20 ring-1 ring-champagne/50' : 'glass'}`}>
+                  {x}
+                </button>
+              ))}
+            </div>
+          )}
+          {stakeMode === 'custom' && (
+            <input
+              value={opts.stake ?? ''}
+              onChange={(e) => setOpts((o) => ({ ...o, stake: e.target.value.slice(0, 90) }))}
+              placeholder="مثال: الخسران يسوي قهوة للثاني ☕"
+              className="mt-2 w-full h-12 rounded-2xl glass px-3 focus:outline-none focus:ring-2 focus:ring-iris-400/50"
+            />
+          )}
+        </div>
+      )}
 
       {canStart ? (
         <Button variant="primary" size="lg" block loading={busy} onClick={() => onStart(opts)} icon={<Play className="size-5 rtl:-scale-x-100" />}>

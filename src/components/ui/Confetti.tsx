@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 
-const colors = ['#a98bff', '#ff7eb6', '#f6d9b8', '#8b5cf6', '#ffb3d2', '#ffffff']
+const colors = ['#94c5cc', '#b4d2e7', '#a1a6b4', '#f8f8f8', '#5e9aa3', '#dbe9f3']
 
 /** احتفال خفيف عند الفوز أو التطابق — يحترم إعداد تقليل الحركة */
 export function Confetti({ count = 46 }: { count?: number }) {

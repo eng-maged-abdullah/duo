@@ -41,7 +41,10 @@ export function useGameApi() {
     next: (round: number) => run(() => roomsApi.nextRound(sid, round), ['not_ready']),
     expire: (round: number) => roomsApi.expireRound(sid, round).then(() => refreshGame()),
     judge: (round: number, target: string, correct: boolean) => run(() => roomsApi.judge(sid, round, target, correct)),
-    move: (move: Record<string, unknown>) => run(() => roomsApi.move(sid, (moves.at(-1)?.seq ?? 0) + 1, move)),
+    move: (move: Record<string, unknown>, quiet: string[] = []) => run(() => roomsApi.move(sid, (moves.at(-1)?.seq ?? 0) + 1, move), quiet),
+    secret: (action: string, slot: string, value: unknown = null, quiet: string[] = []) =>
+      run(() => roomsApi.secret(sid, action, slot, value), quiet) as Promise<null | { ok: true; seq?: number; correct?: boolean; duplicate?: boolean; value?: unknown }>,
+    rate: (round: number, target: string, score: number) => run(() => roomsApi.rate(sid, round, target, score)),
     end: () => run(() => roomsApi.endSession(sid)),
   }
 }
@@ -72,4 +75,30 @@ export function useCountdown(deadline: string | null | undefined, serverNow: () 
     return () => clearInterval(id)
   }, [deadline, serverNow])
   return left
+}
+
+/** أسراري في اللعبة الحالية (كلمتي، نردي، نصف الألغاز…) + الأسرار المكشوفة */
+export function useSecrets() {
+  const { session, moves } = useRoom()
+  const [secrets, setSecrets] = useState<Record<string, { v: unknown; mine: boolean; revealed: boolean }>>({})
+  const sid = session?.id
+  const key = `${sid}:${moves.length}:${session?.version ?? 0}`
+  useEffect(() => {
+    if (!sid) return
+    let alive = true
+    roomsApi.secrets(sid).then((r) => {
+      if (alive && r.ok) setSecrets(r.secrets ?? {})
+    })
+    return () => {
+      alive = false
+    }
+  }, [sid, key])
+  return secrets
+}
+
+/** مؤقت يبدأ من وقت حركة معيّنة على الخادم */
+export function useMoveTimer(startIso: string | null | undefined, seconds: number, onZero?: () => void) {
+  const { serverNow } = useRoom()
+  const deadline = startIso ? new Date(new Date(startIso).getTime() + seconds * 1000).toISOString() : null
+  return useCountdown(deadline, serverNow, onZero)
 }

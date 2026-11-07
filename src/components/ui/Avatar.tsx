@@ -11,11 +11,11 @@ export function Avatar({
   speaking?: boolean
   size?: number
 }) {
-  const bg = seat === 1 ? 'from-iris-300 to-iris-600' : 'from-rose-300 to-rose-500'
+  const bg = seat === 1 ? 'from-[#b4d2e7] to-[#5e9aa3]' : 'from-[#f8f8f8] to-[#a1a6b4]'
   return (
     <div className={`relative shrink-0 ${speaking ? 'speaking-ring' : ''}`} style={{ width: size, height: size }}>
       <div
-        className={`grid size-full place-items-center rounded-full bg-gradient-to-br ${bg} font-display font-semibold text-night-950 shadow-lg`}
+        className={`grid size-full place-items-center rounded-full bg-gradient-to-br ${bg} font-display font-semibold text-[#000100] shadow-lg ring-1 ring-black/10`}
         style={{ fontSize: size * 0.42 }}
       >
         {[...name.trim()][0] ?? '؟'}

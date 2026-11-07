@@ -19,7 +19,7 @@ export function resolvedTheme(pref = getThemePref()): 'light' | 'dark' {
 export function applyTheme(pref = getThemePref()) {
   const t = resolvedTheme(pref)
   document.documentElement.classList.toggle('light', t === 'light')
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'light' ? '#faf7fc' : '#0d0714')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'light' ? '#f8f8f8' : '#000100')
   document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', t)
 }
 

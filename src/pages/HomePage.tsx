@@ -195,7 +195,7 @@ export function HomePage() {
           <div className="glass rounded-2xl p-4 flex gap-3">
             <Shield className="size-5 text-emerald-300 shrink-0 mt-0.5" />
             <p className="text-sm text-mist leading-relaxed">
-              الغرف خاصة: لا يراها إلا اللاعبان. لا نطلب اسمك الحقيقي أو بريدك أو رقمك، ولا نسجّل الصوت. الغرفة تبقى محفوظة، ومنشئها يقدر يحذفها مع رسائلها في أي وقت.
+              الغرف خاصة: لا يراها إلا اللاعبان. لا نطلب اسمك الحقيقي أو بريدك أو رقمك، ولا نسجّل الصوت. الغرفة تنحذف تلقائيًا مع رسائلها إذا ما دخلها أحد لمدة ساعة، ومنشئها يقدر يحذفها في أي وقت.
             </p>
           </div>
           <div className="glass rounded-2xl p-4 flex gap-3">

@@ -43,6 +43,9 @@ export type RoomCtxValue = {
   voiceState: VoiceState | null
   leave: () => Promise<void>
   deleteRoom: () => Promise<string | null>
+  /** بث سريع داخل الغرفة (خطوط الرسم، تنبيهات اللعب) — لا يُحفظ */
+  sendLive?: (payload: Record<string, unknown>) => void
+  onLive?: (fn: (payload: Record<string, unknown>) => void) => () => void
 }
 
 /** مُصدَّر لاختبارات الواجهة المرئية فقط */
@@ -82,6 +85,7 @@ export function RoomProvider({ code, children }: { code: string; children: React
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const onlineRef = useRef<Set<string>>(new Set())
   const sessionIdRef = useRef<string | null>(null)
+  const liveListeners = useRef(new Set<(p: Record<string, unknown>) => void>())
 
   playersRef.current = players
 
@@ -262,6 +266,10 @@ export function RoomProvider({ code, children }: { code: string; children: React
             typingTimer.current = setTimeout(() => setPartnerTyping(false), 3500)
           })
           .on('broadcast', { event: 'rtc' }, ({ payload }) => voice?.handleSignal(payload as VoiceSignal))
+          .on('broadcast', { event: 'live' }, ({ payload }) => {
+            if (!payload || payload.from === myIdRef.current) return
+            for (const fn of liveListeners.current) fn(payload as Record<string, unknown>)
+          })
           .on('presence', { event: 'sync' }, () => {
             const state = ch!.presenceState()
             const ids = new Set(Object.keys(state))
@@ -297,12 +305,26 @@ export function RoomProvider({ code, children }: { code: string; children: React
     const poll = setInterval(() => {
       if (document.visibilityState === 'visible' && roomIdRef.current) void refetchAll()
     }, 25000)
+    // "أنا موجود": الغرفة اللي ما دخلها أحد ساعة تنحذف تلقائيًا، فنمدد عمرها وإحنا فيها
+    let lastTouch = 0
+    const touch = () => {
+      if (!roomIdRef.current || document.visibilityState !== 'visible' || Date.now() - lastTouch < 60_000) return
+      lastTouch = Date.now()
+      void roomsApi.touch(roomIdRef.current)
+    }
+    const touchTimer = setInterval(touch, 10 * 60_000)
+    const firstTouch = setInterval(() => lastTouch === 0 && touch(), 3000)
     const onOnline = () => {
       setConnection('reconnecting')
       void refetchAll()
     }
     const onOffline = () => setConnection('offline')
-    const onVisible = () => document.visibilityState === 'visible' && roomIdRef.current && void refetchAll()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && roomIdRef.current) {
+        void refetchAll()
+        touch()
+      }
+    }
     const onPageHide = () => voiceRef.current?.hangup()
     window.addEventListener('online', onOnline)
     window.addEventListener('offline', onOffline)
@@ -312,6 +334,8 @@ export function RoomProvider({ code, children }: { code: string; children: React
     const timersNow = timers.current
     return () => {
       cancelled = true
+      clearInterval(touchTimer)
+      clearInterval(firstTouch)
       clearInterval(poll)
       Object.values(timersNow).forEach(clearTimeout)
       window.removeEventListener('online', onOnline)
@@ -411,6 +435,16 @@ export function RoomProvider({ code, children }: { code: string; children: React
     return null
   }, [])
 
+  const sendLive = useCallback((payload: Record<string, unknown>) => {
+    void chRef.current?.send({ type: 'broadcast', event: 'live', payload: { ...payload, from: myIdRef.current } })
+  }, [])
+  const onLive = useCallback((fn: (p: Record<string, unknown>) => void) => {
+    liveListeners.current.add(fn)
+    return () => {
+      liveListeners.current.delete(fn)
+    }
+  }, [])
+
   const me = players.find((p) => p.user_id === myId)
   const partner = players.find((p) => p.user_id !== myId)
 
@@ -442,8 +476,10 @@ export function RoomProvider({ code, children }: { code: string; children: React
       voiceState,
       leave,
       deleteRoom,
+      sendLive,
+      onLive,
     }),
-    [status, error, myId, room, players, me, partner, online, connection, session, answers, moves, fetchGame, messages, sendMessage, retryMessage, unread, setChatOpen, partnerTyping, notifyTyping, voiceState, leave, deleteRoom],
+    [status, error, myId, room, players, me, partner, online, connection, session, answers, moves, fetchGame, messages, sendMessage, retryMessage, unread, setChatOpen, partnerTyping, notifyTyping, voiceState, leave, deleteRoom, sendLive, onLive],
   )
 
   return <RoomCtx.Provider value={value}>{children}</RoomCtx.Provider>

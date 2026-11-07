@@ -4,6 +4,7 @@ import { HelpCircle, LogOut, Timer } from 'lucide-react'
 import type { GameDef } from '../types'
 import { Sheet } from '../../components/ui/Sheet'
 import { Button } from '../../components/ui/Button'
+import { useRoom } from '../../lib/rooms/RoomProvider'
 
 export function GameShell({
   def,
@@ -22,6 +23,8 @@ export function GameShell({
 }) {
   const [help, setHelp] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const { session } = useRoom()
+  const stake = typeof session?.content?.stake === 'string' ? (session.content.stake as string) : null
   const secs = timeLeft == null ? null : Math.ceil(timeLeft / 1000)
   const frac = timeLeft != null && totalSeconds ? Math.max(0, Math.min(1, timeLeft / (totalSeconds * 1000))) : null
 
@@ -56,6 +59,10 @@ export function GameShell({
           <LogOut className="size-5 rtl:-scale-x-100" />
         </button>
       </div>
+
+      {stake && (
+        <div className="mb-3 rounded-xl bg-champagne/10 border border-champagne/25 px-3 py-1.5 text-[13px] text-champagne truncate">🎲 الرهان: {stake}</div>
+      )}
 
       {frac !== null && (
         <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-4">

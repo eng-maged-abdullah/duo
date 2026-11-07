@@ -5,25 +5,31 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { HomePage } from '../pages/HomePage'
 import { CreatePage, JoinPage } from '../pages/EntryPages'
 import { RoomPage } from '../pages/RoomPage'
+import { InstallGate } from '../components/InstallGate'
+import { mustInstall } from '../lib/pwa'
 
 /** HashRouter يجعل الروابط تعمل على GitHub Pages دون إعداد خادم */
 export function App() {
   return (
     <ErrorBoundary>
-    <MotionConfig reducedMotion="user">
-      <ToastProvider>
-        <HashRouter>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/create" element={<CreatePage />} />
-            <Route path="/join" element={<JoinPage />} />
-            <Route path="/join/:code" element={<JoinPage />} />
-            <Route path="/room/:code" element={<RoomPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </HashRouter>
-      </ToastProvider>
-    </MotionConfig>
+      <MotionConfig reducedMotion='user'>
+        <ToastProvider>
+          {mustInstall() ? (
+            <InstallGate />
+          ) : (
+            <HashRouter>
+              <Routes>
+                <Route path='/' element={<HomePage />} />
+                <Route path='/create' element={<CreatePage />} />
+                <Route path='/join' element={<JoinPage />} />
+                <Route path='/join/:code' element={<JoinPage />} />
+                <Route path='/room/:code' element={<RoomPage />} />
+                <Route path='*' element={<Navigate to='/' replace />} />
+              </Routes>
+            </HashRouter>
+          )}
+        </ToastProvider>
+      </MotionConfig>
     </ErrorBoundary>
   )
 }

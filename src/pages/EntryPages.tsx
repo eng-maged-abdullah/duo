@@ -87,7 +87,7 @@ export function CreatePage() {
       <Button variant="primary" size="lg" block loading={busy} disabled={!isConfigured} onClick={() => void create()} icon={<Plus className="size-5" />}>
         {t('create_room')}
       </Button>
-      <p className="mt-4 text-center text-xs text-mist">الغرفة تتسع لشخصين، وتبقى محفوظة حتى تحذفها أنت.</p>
+      <p className="mt-4 text-center text-xs text-mist">الغرفة تتسع لشخصين، وتنحذف تلقائيًا إذا ما دخلها أحد لمدة ساعة.</p>
     </Shell>
   )
 }

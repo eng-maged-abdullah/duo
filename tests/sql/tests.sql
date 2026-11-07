@@ -276,6 +276,188 @@ select t.ok((leave_room((select id from rooms where host_id = :'A' limit 1)) ->>
 reset role;
 select t.ok((select count(*) from rooms where host_id = :'A') >= 1, '64b empty room kept (not auto-deleted)');
 
+-- ========== النسخة الثانية: الأسرار، الرسم، التقييم، الرسائل المقفلة، سؤال اليوم ==========
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select create_room('مها') as r3 \gset
+select (:'r3'::jsonb ->> 'room_id') as room3, (:'r3'::jsonb ->> 'code') as code3 \gset
+reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
+set role authenticated;
+select t.ok((join_room(:'code3', 'سعد') ->> 'ok')::boolean, 'v2-1 partner joins room3');
+
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+reset role;
+select t.ok(_norm('القِطّة') = _norm('قطه') and _norm('أحمد') = _norm('احمد') and _norm(' ١٢٣ ') = '123' and _norm('برج  خليفة') = _norm('برج خليفه'), 'v2-2 arabic normalization');
+set role authenticated;
+select start_game(:'room3', 'draw-guess', gen_random_uuid(), 'turns', 2, null,
+  '{"free":true,"_secrets":[{"slot":"w1","owner":"first","value":[{"w":"قطة","alt":["بسة"]},{"w":"طيارة"},{"w":"برج خليفة"}]},{"slot":"w2","owner":"second","value":[{"w":"قمر"},{"w":"سيارة"},{"w":"عيد ميلاد"}]},{"slot":"code","owner":"none","value":"472"}]}') as dg \gset
+select (:'dg'::jsonb ->> 'session_id') as dgs \gset
+select t.ok((:'dg'::jsonb ->> 'ok')::boolean, 'v2-3 start game with secrets');
+reset role;
+select t.ok(not ((select content from game_sessions where id = :'dgs') ? '_secrets'), 'v2-4 secrets not stored in public content');
+select turn_player as drawer from game_sessions where id = :'dgs' \gset
+select case when :'drawer' = :'A' then :'B' else :'A' end as guesser \gset
+select t.ok((select owner_id from game_secrets where session_id = :'dgs' and slot = 'w1') = :'drawer'::uuid, 'v2-5 first secret owned by first turn player');
+select t.ok((select owner_id from game_secrets where session_id = :'dgs' and slot = 'w2') = :'guesser'::uuid, 'v2-6 second secret owned by other player');
+
+-- الشريك (المخمّن) لا يرى كلمة الرسام
+select set_config('request.jwt.claim.sub', :'guesser', false) \g /dev/null
+set role authenticated;
+select t.ok(not ((get_secrets(:'dgs') -> 'secrets') ? 'w1'), 'v2-7 guesser cannot read drawer word via rpc');
+select t.ok((select count(*) from game_secrets where session_id = :'dgs' and slot = 'w1') = 0, 'v2-8 guesser cannot read drawer word via table');
+select t.ok(not ((get_secrets(:'dgs') -> 'secrets') ? 'code'), 'v2-8b nobody reads ownerless secret');
+select t.ok((secret_action(:'dgs', 'choose', 'w1', '0') ->> 'error') = 'bad_move', 'v2-9 non-owner cannot choose');
+select t.ok((secret_action(:'dgs', 'guess', 'w1', '"قطة"') ->> 'error') = 'not_ready', 'v2-10 guessing before word chosen');
+
+reset role; select set_config('request.jwt.claim.sub', :'drawer', false) \g /dev/null
+set role authenticated;
+select t.ok((get_secrets(:'dgs') -> 'secrets' -> 'w1' -> 'mine')::boolean, 'v2-11 drawer reads own word options');
+select t.ok((secret_action(:'dgs', 'choose', 'w1', '0') ->> 'ok')::boolean, 'v2-12 drawer chooses word');
+select t.ok((select move ->> 'len' from game_moves where session_id = :'dgs' and move ->> 'kind' = 'chosen') = '3', 'v2-13 chosen move shows letter count only');
+select t.ok((secret_action(:'dgs', 'guess', 'w1', '"قطة"') ->> 'error') = 'bad_move', 'v2-14 owner cannot guess own word');
+select t.ok((add_stroke(:'dgs', 1, '{"c":"#fff","w":4,"p":[1,2,3,4]}') ->> 'ok')::boolean, 'v2-15 add stroke');
+select t.ok((add_stroke(:'dgs', 1, ('{"p":"' || repeat('x', 9000) || '"}')::jsonb) ->> 'error') = 'too_long', 'v2-16 huge stroke rejected');
+
+reset role; select set_config('request.jwt.claim.sub', :'guesser', false) \g /dev/null
+set role authenticated;
+select t.ok((select count(*) from game_strokes where session_id = :'dgs') = 1, 'v2-17 partner reads strokes');
+select t.ok(not (secret_action(:'dgs', 'guess', 'w1', '"كلب"') ->> 'correct')::boolean, 'v2-18 wrong guess');
+select t.ok((secret_action(:'dgs', 'guess', 'w1', '"البسّه"') ->> 'correct')::boolean, 'v2-19 alt answer with ال and shadda accepted');
+select t.ok((get_secrets(:'dgs') -> 'secrets' -> 'w1' -> 'v' ->> 'w') = 'قطة', 'v2-20 revealed word visible to both');
+select t.ok((secret_action(:'dgs', 'guess', 'w1', '"قطة"') ->> 'error') = 'round_closed', 'v2-21 no guessing after reveal');
+-- اللعبة حرّة: المخمّن يقدر يرسل حركة حتى لو مو دوره، و pass_turn يبدّل الدور
+select t.ok((submit_move(:'dgs', (select max(seq) + 1 from game_moves where session_id = :'dgs'), '{"kind":"next","pass_turn":true}') ->> 'ok')::boolean, 'v2-22 free move by non-turn player');
+reset role;
+select t.ok((select turn_player from game_sessions where id = :'dgs') = :'guesser'::uuid, 'v2-23 pass_turn toggles turn in free mode');
+select set_config('request.jwt.claim.sub', :'guesser', false) \g /dev/null
+set role authenticated;
+select t.ok((secret_action(:'dgs', 'guess', 'code', '"٤٧٢"') ->> 'correct')::boolean, 'v2-24 vault code guess with arabic digits');
+-- رمي النرد وكشف الكل
+select t.ok((secret_action(:'dgs', 'roll', 'd1s1', '5') ->> 'ok')::boolean, 'v2-25 roll dice');
+select t.ok(jsonb_array_length(get_secrets(:'dgs') -> 'secrets' -> 'd1s1' -> 'v') = 5, 'v2-26 own dice visible');
+select t.ok((secret_action(:'dgs', 'roll', 'd1s1', '5') ->> 'duplicate')::boolean, 'v2-27 cannot re-roll');
+select t.ok((secret_action(:'dgs', 'set', 'lie1', '2') ->> 'ok')::boolean, 'v2-28 set own secret');
+reset role; select set_config('request.jwt.claim.sub', :'drawer', false) \g /dev/null
+set role authenticated;
+select t.ok(not ((get_secrets(:'dgs') -> 'secrets') ? 'd1s1'), 'v2-29 partner dice hidden');
+select t.ok((secret_action(:'dgs', 'set', 'lie1', '0') ->> 'error') = 'bad_move', 'v2-30 cannot overwrite partner secret');
+select t.ok((secret_action(:'dgs', 'guess', 'lie1', '"2"') ->> 'correct')::boolean, 'v2-31 guess partner secret');
+select t.ok((secret_action(:'dgs', 'reveal_prefix', 'd1s') -> 'values' ? 'd1s1'), 'v2-32 reveal all dice');
+select t.ok((get_secrets(:'dgs') -> 'secrets' -> 'd1s1' ->> 'revealed')::boolean, 'v2-33 revealed dice visible to partner');
+
+-- ألعاب غير حرة ما زالت تتحقق من الدور
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select start_game(:'room3', 'dots', gen_random_uuid(), 'turns', 1, null, '{}') as dotsr \gset
+select (:'dotsr'::jsonb ->> 'session_id') as dots \gset
+select turn_player as dt from game_sessions where id = :'dots' \gset
+select case when :'dt' = :'A' then :'B' else :'A' end as nt \gset
+reset role; select set_config('request.jwt.claim.sub', :'nt', false) \g /dev/null
+set role authenticated;
+select t.ok((submit_move(:'dots', 1, '{"kind":"line","id":0}') ->> 'error') = 'not_your_turn', 'v2-34 strict turn order for non-free games');
+
+-- أغبى إجابة: التقييم بعد الكشف فقط
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select start_game(:'room3', 'dumb', gen_random_uuid(), 'rounds', 2, null, '{}') ->> 'session_id' as dumb \gset
+select t.ok((submit_answer(:'dumb', 1, '{"text":"لأن البحر يغار"}') ->> 'ok')::boolean, 'v2-35 answer');
+select t.ok((rate_answer(:'dumb', 1, :'B', 5) ->> 'error') = 'not_ready', 'v2-36 cannot rate before reveal');
+reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
+set role authenticated;
+select submit_answer(:'dumb', 1, '{"text":"عشان الغيم يحب الأزرق"}') \g /dev/null
+select t.ok((rate_answer(:'dumb', 1, :'A', 4) ->> 'ok')::boolean, 'v2-37 rate partner');
+select t.ok((rate_answer(:'dumb', 1, :'B', 5) ->> 'error') = 'bad_request', 'v2-38 cannot rate yourself');
+select t.ok((rate_answer(:'dumb', 1, :'A', 9) ->> 'error') = 'bad_request', 'v2-39 rating range');
+select t.ok((select rating from game_answers where session_id = :'dumb' and player_id = :'A') = 4, 'v2-40 rating stored');
+
+-- الرسائل المقفلة
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select t.ok((letter_create(:'room3', 'افتحها في ذكرانا 💜', now() + interval '3 days') ->> 'ok')::boolean, 'v2-41 create locked letter');
+select t.ok((letter_create(:'room3', 'رسالة مفتوحة', now()) ->> 'ok')::boolean, 'v2-42 create open letter');
+select t.ok((select count(*) from jsonb_array_elements(letter_list(:'room3') -> 'letters') x where x ->> 'body' is not null) = 2, 'v2-43 author reads own letters');
+reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
+set role authenticated;
+select t.ok((select count(*) from jsonb_array_elements(letter_list(:'room3') -> 'letters') x where x ->> 'body' is not null) = 1, 'v2-44 partner cannot read locked letter body');
+select t.ok((select count(*) from jsonb_array_elements(letter_list(:'room3') -> 'letters')) = 2, 'v2-45 partner sees locked letter exists');
+do $$ begin
+  begin
+    perform 1 from public.room_letters;
+    raise exception 'FAIL: direct letter read';
+  exception when insufficient_privilege then null; end;
+end $$;
+select t.ok(true, 'v2-46 no direct read of letters table');
+select t.ok((letter_delete((select (x ->> 'id')::uuid from jsonb_array_elements(letter_list(:'room3') -> 'letters') x limit 1)) ->> 'error') = 'not_allowed', 'v2-47 cannot delete partner letter');
+
+-- قصتنا وقائمة الأحلام
+select t.ok((moment_add(:'room3', 'bucket', 'نسافر اليابان', '', '🗾') ->> 'ok')::boolean, 'v2-48 add bucket item');
+select t.ok((moment_add(:'room3', 'timeline', 'أول لقاء', 'في المقهى', '☕', '2024-02-14') ->> 'ok')::boolean, 'v2-49 add timeline moment');
+select id as mom from room_moments where kind = 'bucket' and room_id = :'room3' limit 1 \gset
+select t.ok((moment_add(:'room3', 'secret', 'x') ->> 'error') = 'bad_request', 'v2-50 bad moment kind');
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select t.ok((moment_done(:'mom', true) ->> 'ok')::boolean, 'v2-51 partner ticks shared dream');
+select t.ok((moment_delete((select id from room_moments where kind = 'timeline' and room_id = :'room3' limit 1)) ->> 'error') = 'not_allowed', 'v2-52 cannot delete partner memory');
+reset role; select set_config('request.jwt.claim.sub', :'C', false) \g /dev/null
+set role authenticated;
+select t.ok((select count(*) from room_moments) = 0, 'v2-53 outsider sees no moments');
+select t.ok((letter_list(:'room3') ->> 'error') = 'not_member', 'v2-54 outsider cannot list letters');
+select t.ok((daily_get(:'room3', current_date) ->> 'error') = 'not_member', 'v2-55 outsider no daily');
+select t.ok((select count(*) from game_strokes) = 0, 'v2-56 outsider sees no strokes');
+select t.ok((get_secrets(:'dgs') ->> 'error') = 'not_member', 'v2-57 outsider cannot read secrets');
+
+-- سؤال اليوم
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select t.ok((daily_answer(:'room3', current_date, 'أحب صوتك') ->> 'ok')::boolean, 'v2-58 answer daily');
+select t.ok((daily_answer(:'room3', current_date - 5, 'قديم') ->> 'error') = 'bad_request', 'v2-59 cannot answer old days');
+reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
+set role authenticated;
+select t.ok((daily_get(:'room3', current_date) ->> 'theirs') is null and (daily_get(:'room3', current_date) ->> 'their_done')::boolean, 'v2-60 partner answer hidden until I answer');
+select daily_answer(:'room3', current_date, 'وأنا أحب ضحكتك') \g /dev/null
+select t.ok((daily_get(:'room3', current_date) ->> 'theirs') = 'أحب صوتك', 'v2-61 partner answer shown after answering');
+reset role;
+insert into daily_answers (room_id, day, user_id, answer) values
+  (:'room3', current_date - 1, :'A', 'x'), (:'room3', current_date - 1, :'B', 'y'),
+  (:'room3', current_date - 2, :'A', 'x'), (:'room3', current_date - 2, :'B', 'y'),
+  (:'room3', current_date - 4, :'A', 'x'), (:'room3', current_date - 4, :'B', 'y');
+select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select t.ok((daily_get(:'room3', current_date) ->> 'streak')::int = 3, 'v2-62 streak counts consecutive days');
+select t.ok(jsonb_array_length(daily_get(:'room3', current_date) -> 'history') = 3, 'v2-63 history of past days');
+select t.ok((room_stats(:'room3') ->> 'ok')::boolean and (room_stats(:'room3') ->> 'daily')::int = 4, 'v2-64 room stats');
+-- حذف الغرفة يحذف كل شي معها
+select t.ok((delete_room(:'room3') ->> 'ok')::boolean, 'v2-65 delete room3');
+reset role;
+select t.ok((select count(*) from room_letters where room_id = :'room3') + (select count(*) from room_moments where room_id = :'room3')
+          + (select count(*) from daily_answers where room_id = :'room3') + (select count(*) from game_strokes where room_id = :'room3') = 0, 'v2-66 everything removed with the room');
+
+-- ========== الغرف المهجورة تنحذف بعد ساعة ==========
+reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select (create_room('مها') ->> 'room_id') as room4 \gset
+select (create_room('مها') ->> 'room_id') as room5 \gset
+select t.ok((touch_room(:'room4') ->> 'ok')::boolean, 'idle-1 member can touch room');
+reset role; select set_config('request.jwt.claim.sub', :'C', false) \g /dev/null
+set role authenticated;
+select t.ok((touch_room(:'room4') ->> 'error') = 'not_member', 'idle-2 outsider cannot touch');
+reset role;
+update rooms set last_active_at = now() - interval '61 minutes' where id = :'room4';
+update rooms set last_active_at = now() - interval '50 minutes' where id = :'room5';
+select set_config('request.jwt.claim.sub', :'C', false) \g /dev/null
+set role authenticated;
+select create_room('ضيف') \g /dev/null
+reset role;
+select t.ok(not exists (select 1 from rooms where id = :'room4'), 'idle-3 room idle for over an hour is deleted');
+select t.ok(exists (select 1 from rooms where id = :'room5'), 'idle-4 room active within the hour is kept');
+update rooms set last_active_at = now() - interval '2 hours' where id = :'room5';
+select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
+set role authenticated;
+select send_message(:'room5', 'مرحبا', gen_random_uuid()) \g /dev/null
+reset role;
+select t.ok((select last_active_at > now() - interval '1 minute' from rooms where id = :'room5'), 'idle-5 sending a message counts as activity');
+
 -- anon role (not signed in) has no access
 reset role; select set_config('request.jwt.claim.sub', '', false) \g /dev/null
 set role anon;

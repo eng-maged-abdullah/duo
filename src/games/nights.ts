@@ -1,0 +1,92 @@
+/** وضع السهرة: قوائم ألعاب مرتبة تمشي لحالها من لعبة للثانية */
+export type NightStep = { game: string; opts: Record<string, string> }
+export type Night = { id: string; title: string; emoji: string; desc: string; minutes: string; accent: [string, string]; steps: NightStep[] }
+
+export const nights: Night[] = [
+  {
+    id: 'mix',
+    title: 'سهرة منوّعة',
+    emoji: '✨',
+    desc: 'تسخين، ضحك، تحدي، ورومانسية في الختام',
+    minutes: '≈ ساعتين',
+    accent: ['#94c5cc', '#b4d2e7'],
+    steps: [
+      { game: 'who-more', opts: { level: 'mix', rounds: '8' } },
+      { game: 'draw-guess', opts: { turns: '4', secs: '80' } },
+      { game: 'reflex', opts: { rounds: '5' } },
+      { game: 'bet', opts: { rounds: '5' } },
+      { game: 'taboo', opts: { turns: '4', secs: '60' } },
+      { game: 'no-laugh', opts: { turns: '4', secs: '30' } },
+      { game: 'compliments', opts: { total: '4', secs: '25' } },
+      { game: 'talk', opts: { cat: 'نحن', rounds: '4' } },
+    ],
+  },
+  {
+    id: 'laugh',
+    title: 'سهرة ضحك',
+    emoji: '😂',
+    desc: 'رسم، تمثيل، دندنة، وتحدي لا تضحك',
+    minutes: '≈ ساعتين',
+    accent: ['#b4d2e7', '#f8f8f8'],
+    steps: [
+      { game: 'never', opts: { cat: 'all', rounds: '10' } },
+      { game: 'draw-describe', opts: { turns: '2', level: '3', secs: '90' } },
+      { game: 'no-laugh', opts: { turns: '4', secs: '30' } },
+      { game: 'act', opts: { turns: '4', secs: '60' } },
+      { game: 'dumb', opts: { rounds: '4' } },
+      { game: 'hum', opts: { turns: '4', secs: '45' } },
+      { game: 'tongue', opts: { turns: '4' } },
+      { game: 'draw-continue', opts: { strokes: '16', theme: 'random' } },
+    ],
+  },
+  {
+    id: 'romance',
+    title: 'سهرة رومانسية',
+    emoji: '💞',
+    desc: 'نعرف بعض أكثر، نمدح، ونخطط لحلمنا',
+    minutes: '≈ ساعتين',
+    accent: ['#a1a6b4', '#b4d2e7'],
+    steps: [
+      { game: 'taste', opts: { style: 'mix', rounds: '6' } },
+      { game: 'know-me', opts: { style: 'mix', rounds: '6' } },
+      { game: 'compliments', opts: { total: '6', secs: '25' } },
+      { game: 'dream', opts: { plan: 'trip' } },
+      { game: 'two-truths', opts: { turns: '4' } },
+      { game: 'truth-dare', opts: { level: 'romantic', rounds: '6' } },
+      { game: 'talk', opts: { cat: 'رومانسي', rounds: '4' } },
+    ],
+  },
+  {
+    id: 'compete',
+    title: 'سهرة تحدي',
+    emoji: '🏆',
+    desc: 'مين الأذكى والأسرع؟ مع رهان على الخسران',
+    minutes: '≈ ساعة ونص',
+    accent: ['#7fb6be', '#a1a6b4'],
+    steps: [
+      { game: 'quick', opts: { type: 'mix', rounds: '6' } },
+      { game: 'connect4', opts: { best: '3' } },
+      { game: 'vault', opts: { n: '2', digits: '3', secs: '180' } },
+      { game: 'liar', opts: { dice: '4' } },
+      { game: 'word-race', opts: { rounds: '3', secs: '30' } },
+      { game: 'dots', opts: { size: '4' } },
+      { game: 'chain', opts: { cat: 'any', target: '3' } },
+    ],
+  },
+  {
+    id: 'bold',
+    title: 'سهرة جريئة',
+    emoji: '🔥',
+    desc: 'صراحة أكبر… بحدود الذوق، وكل شي يتخطى',
+    minutes: '≈ ساعة',
+    accent: ['#8d97a8', '#94c5cc'],
+    steps: [
+      { game: 'who-more', opts: { level: 'bold', rounds: '12' } },
+      { game: 'never', opts: { cat: 'جريء 🔥', rounds: '10' } },
+      { game: 'bet', opts: { rounds: '5' } },
+      { game: 'truth-dare', opts: { level: 'bold', rounds: '10' } },
+      { game: 'talk', opts: { cat: 'جريئة 🔥', rounds: '6' } },
+    ],
+  },
+]
+export const nightById = (id?: string | null) => nights.find((n) => n.id === id)

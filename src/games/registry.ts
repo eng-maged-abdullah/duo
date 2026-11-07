@@ -1,118 +1,57 @@
 import type { CategoryId, ChoiceItem, GameDef, RankItem, RoundItem, Summary, SummaryCtx, TextItem } from './types'
 import { shuffle, type Rng } from '../utils/random'
 import { fresh as pick } from './engine/fresh'
-import { knowMeItems } from './content/knowMe'
-import { moreDares, moreTruths } from './content/truthDareMore'
-import { talkMore } from './content/talkMore'
-import { thisOrThatMore } from './content/thisOrThatMore'
-import { completeMore, guessAnswerMore, neverMore, whoMoreMore } from './content/more2'
-import { completeMore2, guessAnswerMore2, neverMore2, whoMoreMore2 } from './content/more3'
-import { askMeMore, completeMore3, guessAnswerMore3, neverMore3, openCardsMore, whoMoreMore3 } from './content/more4'
-import { compatMore, knowMeMore, rankMore } from './content/more5'
-import { personalBank } from './content/personal'
-import { personalBank2, rankMore2 } from './content/more6'
-import { quickQuizMore } from './content/quizMore'
-import { trueFalseMore } from './content/tfMore'
-import { extraBank } from './content/more7'
-import { askMe3, emoji3, quick3, rank3, remember3, riddles3, story3 } from './content/more8'
-import { rank4, riddles4, story4 } from './content/more9'
 import { dares, tdLevels, truths, type TdLevel } from './content/truthDare'
-import { compatItems, neverItems, thisOrThat, whoMore } from './content/choices'
-import { askMeBank, completeItems, guessAnswerItems, rememberPrompts, talkItems } from './content/talk'
-import { emojiPuzzles, quickQuiz, riddles, trueFalse } from './content/quiz'
-import { memorySymbols, openCards, rankSets, storyStarters } from './content/misc'
+import { moreDares, moreTruths } from './content/truthDareMore'
+import {
+  allCompat,
+  allEmoji,
+  allGuess,
+  allKnowMe,
+  allNever,
+  allQuick,
+  allRank,
+  allRemember,
+  allRiddles,
+  allStory,
+  allTalk,
+  allTF,
+  allThisOrThat,
+  allWhoMore,
+  allWhoMoreBold,
+  memoryEmoji,
+  talkCategories,
+} from './banks'
 import { byRound, emptyScores, isSkip, nameOf, otherOf, pct, rankSimilarity, subjectOf, winnerHeadline } from './engine/helpers'
+import { newGames } from './defs2'
 
 export const categories: { id: CategoryId; label: string; emoji: string }[] = [
-  { id: 'acquaint', label: 'أسئلة وتعارف', emoji: '💬' },
-  { id: 'laugh', label: 'ضحك وتحديات', emoji: '😂' },
+  { id: 'laugh', label: 'ضحك', emoji: '😂' },
   { id: 'romance', label: 'رومانسية', emoji: '💞' },
-  { id: 'compete', label: 'ألعاب تنافسية', emoji: '🏆' },
-  { id: 'memory', label: 'ألعاب الذاكرة', emoji: '🧠' },
-  { id: 'deep', label: 'أسئلة عميقة', emoji: '🌌' },
-  { id: 'quick', label: 'ألعاب سريعة', emoji: '⚡' },
+  { id: 'compete', label: 'تحدي', emoji: '🏆' },
+  { id: 'acquaint', label: 'نعرف بعض', emoji: '💬' },
+  { id: 'deep', label: 'سوالف عميقة', emoji: '🌌' },
+  { id: 'memory', label: 'ذكاء وذاكرة', emoji: '🧠' },
+  { id: 'quick', label: 'سريعة', emoji: '⚡' },
 ]
 
-const roundsOpt = (def: string, values = ['6', '10', '14']) => ({
+export const roundsOpt = (def: string, values = ['6', '10', '14'], label = 'عدد الجولات', unit = 'جولات') => ({
   key: 'rounds',
-  label: 'عدد الجولات',
+  label,
   kind: 'select' as const,
   default: def,
-  options: values.map((v) => ({ value: v, label: `${v} جولات` })),
+  options: values.map((v) => ({ value: v, label: `${v} ${unit}` })),
 })
 
-const N = (o: Record<string, string>, key: string, d: number) => {
+export const N = (o: Record<string, string>, key: string, d: number) => {
   const n = parseInt(o[key] ?? '', 10)
   return Number.isFinite(n) && n > 0 ? n : d
 }
 
-function mcq(rng: Rng, q: string, a: string, w: string[], extra: Partial<ChoiceItem> = {}): ChoiceItem {
+export function mcq(rng: Rng, q: string, a: string, w: string[], extra: Partial<ChoiceItem> = {}): ChoiceItem {
   const options = shuffle([a, ...w], rng)
   return { type: 'choice', prompt: q, options, correct: options.indexOf(a), ...extra }
 }
-
-const uniqBy = <T,>(arr: T[], key: (x: T) => string) => {
-  const seen = new Set<string>()
-  return arr.filter((x) => {
-    const k = key(x)
-    if (seen.has(k)) return false
-    seen.add(k)
-    return true
-  })
-}
-const allThisOrThat: [string, string][] = [...thisOrThat, ...thisOrThatMore]
-const personal = [...personalBank, ...personalBank2, ...extraBank.personal] as { q: string; o: string[] }[]
-const allKnowMe = uniqBy([...knowMeItems, ...(knowMeMore as { q: string; o: string[] }[]), ...personal].filter((x) => x.o.length === 4), (x) => x.q)
-const allCompat = uniqBy([...compatItems, ...(compatMore as { q: string; o: string[] }[]), ...personal].filter((x) => x.o.length >= 2), (x) => x.q)
-const allNever = uniqBy([...neverItems, ...neverMore, ...neverMore2, ...neverMore3], (x) => x.t)
-const allWhoMore = [...new Set([...whoMore, ...whoMoreMore, ...whoMoreMore2, ...whoMoreMore3])]
-const allComplete = [...new Set([...completeItems, ...completeMore, ...completeMore2, ...completeMore3])]
-const allGuess = [...new Set([...guessAnswerItems, ...guessAnswerMore, ...guessAnswerMore2, ...guessAnswerMore3])]
-const allRank = uniqBy([...rankSets, ...(rankMore as { q: string; o: string[] }[]), ...(rankMore2 as { q: string; o: string[] }[]), ...extraBank.rank, ...(rank3 as { q: string; o: string[] }[]), ...(rank4 as { q: string; o: string[] }[])].filter((x) => x.o.length === 4), (x) => x.q)
-const allAskMe: Record<string, string[]> = Object.fromEntries(
-  [...new Set([...Object.keys(askMeBank), ...Object.keys(askMeMore), ...Object.keys(extraBank.askMe)])].map((k) => [
-    k,
-    [...new Set([...(askMeBank[k] ?? []), ...(askMeMore[k] ?? []), ...(extraBank.askMe[k] ?? []), ...(k === 'تعارف' ? askMe3 : [])])],
-  ]),
-)
-const allOpenCards = uniqBy(
-  [
-    ...openCards,
-    ...openCardsMore,
-    ...extraBank.openCards,
-    // بطاقات من صراحة أو تحدي (المستويات الخفيفة) تناسب "افتح السؤال" أيضًا
-    ...[...truths.light, ...truths.funny, ...moreTruths.light, ...moreTruths.funny].map((t) => ({ k: 'q' as const, t })),
-    ...[...dares.light, ...dares.funny, ...moreDares.light, ...moreDares.funny].map((t) => ({ k: 'd' as const, t })),
-  ],
-  (x) => x.t,
-)
-const allQuick = uniqBy([...quickQuiz, ...quickQuizMore, ...extraBank.quick, ...quick3], (x) => x.q)
-const allTF = uniqBy([...trueFalse, ...trueFalseMore, ...extraBank.tf], (x) => x.s)
-const allRiddles = uniqBy([...riddles, ...extraBank.riddles, ...riddles3, ...riddles4], (x) => x.q)
-const allEmoji = uniqBy([...emojiPuzzles, ...extraBank.emoji, ...emoji3], (x) => x.e)
-const allRemember = [...new Set([...rememberPrompts, ...extraBank.remember, ...remember3])]
-const allStory = [...new Set([...storyStarters, ...extraBank.story, ...story3, ...story4])]
-export const contentBanks = { allKnowMe, allCompat, allRank, allQuick, allTF, allRiddles, allEmoji, allOpenCards }
-export const contentStats = {
-  'know-me': allKnowMe.length,
-  'truth-dare': 500,
-  'this-or-that': allThisOrThat.length,
-  compat: allCompat.length,
-  never: allNever.length,
-  'who-more': allWhoMore.length,
-  complete: allComplete.length,
-  'guess-answer': allGuess.length,
-  rank: allRank.length,
-  'ask-me': Object.values(allAskMe).flat().length,
-  'open-card': allOpenCards.length,
-  quick: allQuick.length,
-  sixty: allTF.length,
-  'what-guess': allRiddles.length,
-  emoji: allEmoji.length,
-  remember: allRemember.length,
-  story: allStory.length,
-}
-const allTalk: { c: string; q: string }[] = [...talkItems, ...Object.entries(talkMore).flatMap(([c, qs]) => qs.map((q) => ({ c, q })))]
 
 const items = (s: SummaryCtx) => (s.session.content?.items ?? []) as RoundItem[]
 
@@ -129,34 +68,6 @@ function quizSummary(ctx: SummaryCtx, points: (ms: number, item: ChoiceItem) => 
   return { scores, unit, headline: winnerHeadline(scores, ctx.players), celebrate: true }
 }
 
-/** نسبة تطابق الاختيارات بين اللاعبين */
-function matchSummary(ctx: SummaryCtx, label: string): Summary {
-  const [p1, p2] = ctx.players.map((p) => p.user_id)
-  let same = 0
-  let total = 0
-  for (const [, m] of byRound(ctx.answers)) {
-    const a = m.get(p1)
-    const b = m.get(p2)
-    if (isSkip(a) || isSkip(b)) continue
-    total++
-    if (JSON.stringify(a!.answer.choice) === JSON.stringify(b!.answer.choice)) same++
-  }
-  const p = pct(same, total)
-  return {
-    percent: p,
-    percentLabel: label,
-    headline: p >= 80 ? 'نسخة طبق الأصل! 😍' : p >= 60 ? 'متفاهمين جدًا 💜' : p >= 40 ? 'توازن حلو بين الشبه والاختلاف' : 'الاختلاف يحلّي السوالف 😄',
-    lines: [`تطابقتم في ${same} من ${total}`],
-    celebrate: p >= 60,
-  }
-}
-
-function judgedSummary(ctx: SummaryCtx, rounds?: (r: number) => boolean): Summary {
-  const scores = emptyScores(ctx.players)
-  for (const a of ctx.answers) if ((!rounds || rounds(a.round)) && a.judged === true) scores[a.player_id] = (scores[a.player_id] ?? 0) + 1
-  return { scores, unit: 'إجابة صحيحة', headline: winnerHeadline(scores, ctx.players, '{name} أقوى ذاكرة وتركيز! 🏆'), celebrate: true }
-}
-
 function talkSummary(ctx: SummaryCtx): Summary {
   const answered = ctx.answers.filter((a) => !isSkip(a)).length
   const voice = ctx.answers.filter((a) => a.answer?.voice).length
@@ -167,46 +78,224 @@ function talkSummary(ctx: SummaryCtx): Summary {
   }
 }
 
+/* ---------------- قد إيش تعرفني: اختيارات + كتابة + ذاكرة ---------------- */
+function knowMeItemsFor(style: string, n: number, rng: Rng): { items: RoundItem[]; shareCount?: number } {
+  const choice = (k: number) => pick(allKnowMe, k, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o], guess: true, tag: 'اختيارات' }))
+  const write = (k: number) => pick(allGuess, k, rng).map((q): TextItem => ({ type: 'text', prompt: q, guess: true, judge: 'subject', placeholder: 'إجابة قصيرة…', tag: 'اكتب توقعك' }))
+  if (style === 'write') return { items: write(n) }
+  if (style === 'memory') {
+    const k = Math.max(3, Math.round(n / 2))
+    const ps = pick(allRemember, k, rng)
+    const share: TextItem[] = ps.map((q) => ({ type: 'text', prompt: q, tag: 'شارك 📝', placeholder: 'إجابة قصيرة وواضحة…' }))
+    const order = shuffle(
+      ps.map((_, i) => i),
+      rng,
+    )
+    const recall: TextItem[] = order.map((i) => ({ type: 'text', prompt: ps[i], recallOf: i + 1, judge: 'mutual', tag: 'تذكّر 🧠', placeholder: 'وش قال شريكك؟' }))
+    return { items: [...share, ...recall], shareCount: k }
+  }
+  if (style === 'mix') {
+    // جولتين اختيارات ثم جولتين كتابة… حتى يتبادل الاثنين كل نوع
+    const c = choice(Math.ceil(n / 2))
+    const w = write(Math.floor(n / 2))
+    const out: RoundItem[] = []
+    for (let r = 0; out.length < n; r++) {
+      const src = Math.floor(r / 2) % 2 === 0 ? c : w
+      const alt = src === c ? w : c
+      const it = src.shift() ?? alt.shift()
+      if (!it) break
+      out.push(it)
+    }
+    return { items: out }
+  }
+  return { items: choice(n) }
+}
+
+function knowMeSummary(ctx: SummaryCtx): Summary {
+  const its = items(ctx)
+  const scores = emptyScores(ctx.players)
+  const share = Number(ctx.session.content?.shareCount ?? 0)
+  for (const [r, m] of byRound(ctx.answers)) {
+    const it = its[r - 1]
+    if (!it) continue
+    if (it.type === 'choice' && it.guess) {
+      const subject = subjectOf(r, ctx.players)
+      const guesser = otherOf(subject, ctx.players)
+      if (!subject || !guesser) continue
+      const s = m.get(subject)
+      const g = m.get(guesser)
+      if (s && g && s.answer.choice === g.answer.choice) scores[guesser]++
+    } else if (it.type === 'text' && (it.judge === 'subject' || (it.recallOf && r > share))) {
+      for (const a of m.values()) if (a.judged === true) scores[a.player_id]++
+    }
+  }
+  return { scores, unit: 'نقطة', headline: winnerHeadline(scores, ctx.players, '{name} يعرفك أكثر! 🏆'), celebrate: true }
+}
+
+/* ---------------- ذوقنا: خيارين + أسلوب حياة + ترتيب ---------------- */
+function tasteItems(style: string, n: number, rng: Rng): RoundItem[] {
+  const q = (k: number) => pick(allThisOrThat, k, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: 'وش تختار؟', options: [...x], tag: 'اختار واحد' }))
+  const l = (k: number) => pick(allCompat, k, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o], tag: 'أسلوب حياة' }))
+  const r = (k: number) => pick(allRank, k, rng).map((x): RankItem => ({ type: 'rank', prompt: x.q, options: [...x.o] }))
+  if (style === 'quick') return q(n)
+  if (style === 'life') return l(n)
+  if (style === 'rank') return r(n)
+  const a = Math.ceil(n * 0.45)
+  const b = Math.ceil(n * 0.35)
+  return shuffle([...q(a), ...l(b), ...r(Math.max(1, n - a - b))], rng).slice(0, n)
+}
+function tasteSummary(ctx: SummaryCtx): Summary {
+  const its = items(ctx)
+  const [p1, p2] = ctx.players.map((p) => p.user_id)
+  const sims: number[] = []
+  for (const [r, m] of byRound(ctx.answers)) {
+    const a = m.get(p1)
+    const b = m.get(p2)
+    if (isSkip(a) || isSkip(b)) continue
+    const it = its[r - 1]
+    if (it?.type === 'rank' && Array.isArray(a!.answer.order) && Array.isArray(b!.answer.order)) sims.push(rankSimilarity(a!.answer.order, b!.answer.order))
+    else sims.push(a!.answer.choice === b!.answer.choice ? 100 : 0)
+  }
+  const p = sims.length ? Math.round(sims.reduce((x, y) => x + y, 0) / sims.length) : 0
+  return {
+    percent: p,
+    percentLabel: 'نسبة تشابه الذوق',
+    headline: p >= 80 ? 'نسخة طبق الأصل! 😍' : p >= 60 ? 'متفاهمين جدًا 💜' : p >= 40 ? 'توازن حلو بين الشبه والاختلاف' : 'الاختلاف يحلّي السوالف 😄',
+    lines: [`قارنتوا ذوقكم في ${sims.length} سؤال`],
+    celebrate: p >= 60,
+    note: 'نتيجة ترفيهية فقط.',
+  }
+}
+
+const levelOpt = {
+  key: 'level',
+  label: 'المستوى',
+  kind: 'select' as const,
+  default: 'normal',
+  options: [
+    { value: 'normal', label: 'عادي 🙂' },
+    { value: 'mix', label: 'منوّع' },
+    { value: 'bold', label: 'جريء 🔥' },
+  ],
+}
+
 const defs: GameDef[] = [
   {
     id: 'know-me',
     title: 'قد إيش تعرفني؟',
-    tagline: 'واحد يجاوب عن نفسه، والثاني يتوقع',
+    tagline: 'اختيارات، كتابة، أو اختبار ذاكرة',
     emoji: '🔍',
     categories: ['acquaint', 'compete', 'romance'],
     accent: ['#8b5cf6', '#f0509a'],
-    minutes: '5–10 د',
+    minutes: '5–15 د',
     badge: 'popular',
     featured: true,
+    stakes: true,
     howTo: [
-      'في كل جولة يكون سؤال عن واحد منكم.',
-      'صاحب السؤال يختار إجابته الحقيقية، والثاني يحاول يتوقعها.',
-      'لا تظهر الإجابات إلا بعد ما يجاوب الاثنين.',
-      'كل توقع صحيح = نقطة، والأدوار تتبدل كل جولة.',
+      'في كل جولة سؤال عن واحد منكم، والأدوار تتبدل.',
+      'صاحب السؤال يجاوب عن نفسه، والثاني يتوقع (باختيار أو بالكتابة).',
+      'في "اختبار الذاكرة": تشاركون تفاصيل عن نفسكم… وبعدين نسألك وش قال شريكك!',
+      'كل توقع صحيح = نقطة.',
     ],
     mode: 'rounds',
     renderer: 'pair',
-    setup: [roundsOpt('10')],
+    setup: [
+      {
+        key: 'style',
+        label: 'طريقة اللعب',
+        kind: 'select',
+        default: 'mix',
+        options: [
+          { value: 'mix', label: 'منوّع ✨' },
+          { value: 'choice', label: 'اختيارات 🔘' },
+          { value: 'write', label: 'تكتب توقعك ✍️' },
+          { value: 'memory', label: 'اختبار الذاكرة 🧠' },
+        ],
+      },
+      roundsOpt('10', ['6', '10', '14']),
+    ],
     build: (o, rng) => {
       const n = N(o, 'rounds', 10)
+      const res = knowMeItemsFor(o.style ?? 'mix', n, rng)
+      return { rounds: res.items.length, seconds: null, content: { items: res.items, style: o.style ?? 'mix', shareCount: res.shareCount } }
+    },
+    summarize: knowMeSummary,
+  },
+  {
+    id: 'talk',
+    title: 'سوالف',
+    tagline: 'أسئلة تفتح قلوبكم… بأي مستوى تبون',
+    emoji: '🌙',
+    categories: ['deep', 'romance', 'acquaint'],
+    accent: ['#3b2a8f', '#8b5cf6'],
+    minutes: '10–40 د',
+    featured: true,
+    howTo: ['اختاروا نوع الأسئلة (أو أضيفوا أسئلتكم الخاصة).', 'كل واحد يكتب إجابته، أو تختارون "نتكلم بالصوت".', 'الإجابتين تظهر مع بعض.', 'تقدرون تتخطون أي سؤال.'],
+    mode: 'rounds',
+    renderer: 'pair',
+    setup: [
+      {
+        key: 'cat',
+        label: 'نوع الأسئلة',
+        kind: 'select',
+        default: 'all',
+        options: [{ value: 'all', label: 'منوّع ✨' }, ...talkCategories.map((c) => ({ value: c, label: c }))],
+      },
+      roundsOpt('6', ['4', '6', '10']),
+      { key: 'custom', label: 'أسئلتك الخاصة (اختياري — سؤال في كل سطر)', kind: 'textarea', placeholder: 'مثال: وش أكثر شي تحبه في نهاية الأسبوع؟', maxLines: 5, maxLen: 140 },
+    ],
+    build: (o, rng) => {
+      const n = N(o, 'rounds', 6)
+      const custom = (o.custom ?? '')
+        .split('\n')
+        .map((s) => s.trim().slice(0, 140))
+        .filter(Boolean)
+        .slice(0, 5)
+      const pool = o.cat && o.cat !== 'all' ? allTalk.filter((t) => t.c === o.cat) : allTalk.filter((t) => t.c !== 'جريئة 🔥')
+      const sel = [...custom.map((q) => ({ q, c: 'سؤال خاص 💌' })), ...pick(pool, Math.max(0, n - custom.length), rng)]
       return {
-        rounds: n,
+        rounds: sel.length,
         seconds: null,
-        content: { items: pick(allKnowMe, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o], guess: true })) },
+        content: {
+          items: sel.map(
+            (x): TextItem => ({ type: 'text', prompt: x.q, tag: x.c, skippable: true, placeholder: x.c === 'كمّلها ✍️' ? 'كمّل الجملة…' : 'اكتب من قلبك…' }),
+          ),
+        },
       }
     },
-    summarize: (ctx) => {
-      const scores = emptyScores(ctx.players)
-      for (const [r, m] of byRound(ctx.answers)) {
-        const subject = subjectOf(r, ctx.players)
-        const guesser = otherOf(subject, ctx.players)
-        if (!subject || !guesser) continue
-        const s = m.get(subject)
-        const g = m.get(guesser)
-        if (s && g && s.answer.choice === g.answer.choice) scores[guesser]++
-      }
-      return { scores, unit: 'توقع صحيح', headline: winnerHeadline(scores, ctx.players, '{name} يعرفك أكثر! 🏆'), celebrate: true }
+    summarize: talkSummary,
+  },
+  {
+    id: 'taste',
+    title: 'ذوقنا',
+    tagline: 'خيارين، أسلوب حياة، وترتيب… كم تتشابهون؟',
+    emoji: '⚖️',
+    categories: ['acquaint', 'romance', 'quick'],
+    accent: ['#6d6bff', '#f0509a'],
+    minutes: '5–10 د',
+    howTo: ['كل جولة: اختيار بين شيئين، أو سؤال عن أسلوب حياتك، أو ترتيب ٤ أشياء.', 'كل واحد يجاوب بدون ما يشوف الثاني.', 'في النهاية: نسبة تشابه ذوقكم.'],
+    mode: 'rounds',
+    renderer: 'pair',
+    setup: [
+      {
+        key: 'style',
+        label: 'نوع الأسئلة',
+        kind: 'select',
+        default: 'mix',
+        options: [
+          { value: 'mix', label: 'منوّع ✨' },
+          { value: 'quick', label: 'اختار واحد ⚖️' },
+          { value: 'life', label: 'أسلوب حياة 🏡' },
+          { value: 'rank', label: 'رتبها 📊' },
+        ],
+      },
+      roundsOpt('10', ['6', '10', '16']),
+    ],
+    build: (o, rng) => {
+      const it = tasteItems(o.style ?? 'mix', N(o, 'rounds', 10), rng)
+      return { rounds: it.length, seconds: null, content: { items: it } }
     },
+    summarize: tasteSummary,
   },
   {
     id: 'truth-dare',
@@ -218,12 +307,7 @@ const defs: GameDef[] = [
     minutes: '10–20 د',
     badge: 'popular',
     featured: true,
-    howTo: [
-      'صاحب الدور يختار صراحة أو تحدي.',
-      'تظهر البطاقة للاثنين، وينفذها صاحب الدور.',
-      'تقدر تتخطى أي بطاقة بدون أي إحراج أو خصم.',
-      'بعدها ينتقل الدور للثاني.',
-    ],
+    howTo: ['صاحب الدور يختار صراحة أو تحدي.', 'تظهر البطاقة للاثنين، وينفذها صاحب الدور.', 'تقدر تتخطى أي بطاقة بدون أي إحراج أو خصم.', 'بعدها ينتقل الدور للثاني.'],
     mode: 'turns',
     renderer: 'truthdare',
     setup: [
@@ -234,7 +318,7 @@ const defs: GameDef[] = [
         default: 'mixed',
         options: [{ value: 'mixed', label: 'منوّع' }, ...tdLevels.map((l) => ({ value: l.id, label: `${l.label} — ${l.hint}` }))],
       },
-      roundsOpt('10', ['6', '10', '16']),
+      roundsOpt('10', ['6', '10', '16'], 'عدد البطاقات', 'بطاقات'),
     ],
     build: (o, rng) => {
       const lv = o.level as TdLevel | 'mixed'
@@ -266,153 +350,6 @@ const defs: GameDef[] = [
     },
   },
   {
-    id: 'this-or-that',
-    title: 'اختار واحد',
-    tagline: 'خياران… وشوفوا كم تتشابهون',
-    emoji: '⚖️',
-    categories: ['quick', 'acquaint'],
-    accent: ['#6d6bff', '#29c4e6'],
-    minutes: '3–5 د',
-    howTo: ['يظهر لكم خياران.', 'كل واحد يختار بدون ما يشوف اختيار الثاني.', 'بعد ما تختارون الاثنين تظهر النتيجة، وفي النهاية نسبة التطابق.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [roundsOpt('12', ['8', '12', '20'])],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 12)
-      return {
-        rounds: n,
-        seconds: null,
-        content: { items: pick(allThisOrThat, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: 'وش تختار؟', options: [...x] })) },
-      }
-    },
-    summarize: (ctx) => matchSummary(ctx, 'نسبة التشابه'),
-  },
-  {
-    id: 'compat',
-    title: 'اختبار التوافق',
-    tagline: 'أسلوب حياتكم… كم يتشابه؟',
-    emoji: '💞',
-    categories: ['romance', 'acquaint'],
-    accent: ['#f0509a', '#8b5cf6'],
-    minutes: '5–8 د',
-    featured: true,
-    howTo: ['أسئلة عن أسلوب الحياة والقيم.', 'كل واحد يجاوب عن نفسه بصراحة.', 'في النهاية تظهر نسبة توافق ترفيهية.', 'النتيجة للمتعة فقط وليست قياسًا نفسيًا علميًا.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [roundsOpt('10', ['6', '10', '16'])],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 10)
-      return {
-        rounds: n,
-        seconds: null,
-        content: { items: pick(allCompat, n, rng).map((x): ChoiceItem => ({ type: 'choice', prompt: x.q, options: [...x.o] })) },
-      }
-    },
-    summarize: (ctx) => ({ ...matchSummary(ctx, 'نسبة التوافق'), note: 'نتيجة ترفيهية فقط، وليست اختبارًا نفسيًا علميًا.' }),
-  },
-  {
-    id: 'talk',
-    title: 'خلنا نتكلم',
-    tagline: 'أسئلة عميقة لسوالف حقيقية',
-    emoji: '🌌',
-    categories: ['deep', 'romance', 'acquaint'],
-    accent: ['#3b2a8f', '#8b5cf6'],
-    minutes: '15–30 د',
-    howTo: ['سؤال عميق في كل جولة.', 'اكتب إجابتك، أو اختر "نتكلم عنه بالصوت" إذا المكالمة شغالة.', 'تقدر تتخطى أي سؤال ما ترتاح له.', 'تظهر الإجابتان بعد ما يجاوب الاثنين.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [
-      {
-        key: 'cat',
-        label: 'نوع الأسئلة',
-        kind: 'select',
-        default: 'all',
-        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(allTalk.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
-      },
-      roundsOpt('6', ['4', '6', '10']),
-    ],
-    build: (o, rng) => {
-      const pool = o.cat && o.cat !== 'all' ? allTalk.filter((t) => t.c === o.cat) : allTalk
-      const sel = pick(pool, N(o, 'rounds', 6), rng)
-      return {
-        rounds: sel.length,
-        seconds: null,
-        content: { items: sel.map((x): TextItem => ({ type: 'text', prompt: x.q, tag: x.c, skippable: true, placeholder: 'اكتب من قلبك…' })) },
-      }
-    },
-    summarize: talkSummary,
-  },
-  {
-    id: 'never',
-    title: 'عمري ما',
-    tagline: 'سويتها ولا عمرك ما سويتها؟',
-    emoji: '🙊',
-    categories: ['laugh', 'acquaint', 'quick'],
-    accent: ['#ff9a62', '#f0509a'],
-    minutes: '5–10 د',
-    howTo: ['تظهر عبارة تبدأ بـ "عمري ما…".', 'كل واحد يختار: سويتها أو عمري ما سويتها.', 'تقدر تتخطى أي عبارة شخصية.', 'شوفوا وش تشتركون فيه!'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [
-      {
-        key: 'cat',
-        label: 'الفئة',
-        kind: 'select',
-        default: 'all',
-        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(allNever.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
-      },
-      roundsOpt('10', ['6', '10', '15']),
-    ],
-    build: (o, rng) => {
-      const pool = o.cat && o.cat !== 'all' ? allNever.filter((t) => t.c === o.cat) : allNever
-      const sel = pick(pool, N(o, 'rounds', 10), rng)
-      return {
-        rounds: sel.length,
-        seconds: null,
-        content: { items: sel.map((x): ChoiceItem => ({ type: 'choice', prompt: x.t, options: ['سويتها 🙋', 'عمري ما سويتها 🙅'], skippable: true, tag: x.c })) },
-      }
-    },
-    summarize: (ctx) => {
-      const [p1, p2] = ctx.players.map((p) => p.user_id)
-      let bothDid = 0,
-        bothNever = 0,
-        diff = 0
-      for (const [, m] of byRound(ctx.answers)) {
-        const a = m.get(p1)
-        const b = m.get(p2)
-        if (isSkip(a) || isSkip(b)) continue
-        if (a!.answer.choice === b!.answer.choice) a!.answer.choice === 0 ? bothDid++ : bothNever++
-        else diff++
-      }
-      return { headline: 'اكتشافات جديدة! 🙊', lines: [`سويتوها الاثنين: ${bothDid}`, `ما سويتوها الاثنين: ${bothNever}`, `اختلفتوا في: ${diff}`] }
-    },
-  },
-  {
-    id: 'guess-answer',
-    title: 'توقع جوابي',
-    tagline: 'اكتب توقعك… وهو يحكم!',
-    emoji: '🎯',
-    categories: ['acquaint', 'compete'],
-    accent: ['#29c4e6', '#8b5cf6'],
-    minutes: '8–12 د',
-    howTo: ['سؤال عن واحد منكم: هو يكتب إجابته الحقيقية، والثاني يكتب توقعه.', 'بعد الكشف، صاحب السؤال يحكم: هل التوقع صح؟', 'كل توقع صحيح = نقطة، والأدوار تتبدل.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [roundsOpt('8', ['6', '8', '12'])],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 8)
-      return {
-        rounds: n,
-        seconds: null,
-        content: { items: pick(allGuess, n, rng).map((q): TextItem => ({ type: 'text', prompt: q, guess: true, judge: 'subject', placeholder: 'إجابة قصيرة…' })) },
-      }
-    },
-    summarize: (ctx) => {
-      const s = judgedSummary(ctx)
-      return { ...s, unit: 'توقع صحيح', headline: winnerHeadline(s.scores!, ctx.players, '{name} يقرأ أفكارك! 🎯') }
-    },
-  },
-  {
     id: 'who-more',
     title: 'مين فينا أكثر؟',
     tagline: 'أنا ولا أنت؟ اختاروا بصراحة',
@@ -423,10 +360,11 @@ const defs: GameDef[] = [
     howTo: ['تظهر صفة أو موقف.', 'كل واحد يختار: أنا أو شريكي.', 'بعد الكشف تشوفون هل اتفقتم!'],
     mode: 'rounds',
     renderer: 'pair',
-    setup: [roundsOpt('12', ['8', '12', '18'])],
+    setup: [levelOpt, roundsOpt('12', ['8', '12', '18'])],
     build: (o, rng) => {
       const n = N(o, 'rounds', 12)
-      return { rounds: n, seconds: null, content: { items: pick(allWhoMore, n, rng).map((q): ChoiceItem => ({ type: 'choice', prompt: q, options: [], who: true })) } }
+      const pool = o.level === 'bold' ? allWhoMoreBold : o.level === 'mix' ? [...allWhoMore, ...allWhoMoreBold] : allWhoMore
+      return { rounds: n, seconds: null, content: { items: pick(pool, n, rng).map((q): ChoiceItem => ({ type: 'choice', prompt: q, options: [], who: true, tag: allWhoMoreBold.includes(q) ? 'جريء 🔥' : undefined })) } }
     },
     summarize: (ctx) => {
       const [p1, p2] = ctx.players.map((p) => p.user_id)
@@ -456,6 +394,51 @@ const defs: GameDef[] = [
     },
   },
   {
+    id: 'never',
+    title: 'عمري ما',
+    tagline: 'سويتها ولا عمرك ما سويتها؟',
+    emoji: '🙊',
+    categories: ['laugh', 'acquaint', 'quick'],
+    accent: ['#ff9a62', '#f0509a'],
+    minutes: '5–10 د',
+    howTo: ['تظهر عبارة تبدأ بـ "عمري ما…".', 'كل واحد يختار: سويتها أو عمري ما سويتها.', 'تقدر تتخطى أي عبارة شخصية.', 'شوفوا وش تشتركون فيه!'],
+    mode: 'rounds',
+    renderer: 'pair',
+    setup: [
+      {
+        key: 'cat',
+        label: 'الفئة',
+        kind: 'select',
+        default: 'all',
+        options: [{ value: 'all', label: 'منوّع' }, ...[...new Set(allNever.map((t) => t.c))].map((c) => ({ value: c, label: c }))],
+      },
+      roundsOpt('10', ['6', '10', '15']),
+    ],
+    build: (o, rng) => {
+      const pool = o.cat && o.cat !== 'all' ? allNever.filter((t) => t.c === o.cat) : allNever.filter((t) => t.c !== 'جريء 🔥')
+      const sel = pick(pool, N(o, 'rounds', 10), rng)
+      return {
+        rounds: sel.length,
+        seconds: null,
+        content: { items: sel.map((x): ChoiceItem => ({ type: 'choice', prompt: x.t, options: ['سويتها 🙋', 'عمري ما سويتها 🙅'], skippable: true, tag: x.c })) },
+      }
+    },
+    summarize: (ctx) => {
+      const [p1, p2] = ctx.players.map((p) => p.user_id)
+      let bothDid = 0,
+        bothNever = 0,
+        diff = 0
+      for (const [, m] of byRound(ctx.answers)) {
+        const a = m.get(p1)
+        const b = m.get(p2)
+        if (isSkip(a) || isSkip(b)) continue
+        if (a!.answer.choice === b!.answer.choice) a!.answer.choice === 0 ? bothDid++ : bothNever++
+        else diff++
+      }
+      return { headline: 'اكتشافات جديدة! 🙊', lines: [`سويتوها الاثنين: ${bothDid}`, `ما سويتوها الاثنين: ${bothNever}`, `اختلفتوا في: ${diff}`] }
+    },
+  },
+  {
     id: 'memory',
     title: 'ذاكرة DUO',
     tagline: 'اقلب البطاقات وطابق الأزواج',
@@ -463,8 +446,7 @@ const defs: GameDef[] = [
     categories: ['memory', 'compete'],
     accent: ['#7040e0', '#29c4e6'],
     minutes: '5–8 د',
-    badge: 'popular',
-    featured: true,
+    stakes: true,
     howTo: ['البطاقات مقلوبة ومرتبة سرًا على الخادم.', 'في دورك اقلب بطاقتين.', 'إذا تطابقت تاخذ نقطة وتكمل دورك.', 'إذا ما تطابقت ينتقل الدور للثاني.'],
     mode: 'turns',
     renderer: 'memory',
@@ -483,7 +465,7 @@ const defs: GameDef[] = [
     ],
     build: (o, rng) => {
       const pairs = Math.min(12, Math.max(4, N(o, 'pairs', 8)))
-      return { rounds: 1, seconds: null, content: { pairs, symbols: pick(memorySymbols, pairs, rng) } }
+      return { rounds: 1, seconds: null, content: { pairs, symbols: pick(memoryEmoji, pairs, rng) } }
     },
     summarize: (ctx) => {
       const scores = { ...emptyScores(ctx.players), ...(ctx.session.state?.scores ?? {}) } as Record<string, number>
@@ -492,58 +474,42 @@ const defs: GameDef[] = [
   },
   {
     id: 'quick',
-    title: 'جاوب بسرعة',
-    tagline: 'معلومات عامة… والأسرع يكسب',
+    title: 'تحدي المعلومات',
+    tagline: 'معلومات وألغاز… والأسرع يكسب',
     emoji: '⚡',
-    categories: ['quick', 'compete'],
+    categories: ['quick', 'compete', 'memory'],
     accent: ['#ffc861', '#ff6b6b'],
-    minutes: '3–5 د',
-    badge: 'new',
-    howTo: ['سؤال معلومات عامة بمؤقت موحد للاثنين.', 'الإجابة الصحيحة = 10 نقاط + نقاط سرعة حتى 10.', 'وقت الإجابة يحسبه الخادم لضمان العدالة.'],
+    minutes: '3–6 د',
+    stakes: true,
+    howTo: ['سؤال بمؤقت موحد للاثنين.', 'الإجابة الصحيحة = 10 نقاط + نقاط سرعة حتى 10.', 'وقت الإجابة يحسبه الخادم لضمان العدالة.'],
     mode: 'rounds',
     renderer: 'pair',
-    setup: [roundsOpt('10', ['6', '10', '15'])],
+    setup: [
+      {
+        key: 'type',
+        label: 'النوع',
+        kind: 'select',
+        default: 'mix',
+        options: [
+          { value: 'mix', label: 'منوّع ✨' },
+          { value: 'info', label: 'معلومات عامة 📚' },
+          { value: 'riddle', label: 'ألغاز 🤔' },
+        ],
+      },
+      roundsOpt('10', ['6', '10', '15']),
+    ],
     build: (o, rng) => {
       const n = N(o, 'rounds', 10)
-      return { rounds: n, seconds: 15, content: { items: pick(allQuick, n, rng).map((x) => mcq(rng, x.q, x.a, x.w)) } }
+      const t = o.type ?? 'mix'
+      const info = (k: number) => pick(allQuick, k, rng).map((x) => mcq(rng, x.q, x.a, x.w, { tag: 'معلومة' }))
+      const rid = (k: number) => pick(allRiddles, k, rng).map((x) => mcq(rng, x.q, x.a, x.w, { tag: 'لغز' }))
+      const its = t === 'info' ? info(n) : t === 'riddle' ? rid(n) : shuffle([...info(Math.ceil(n / 2)), ...rid(Math.floor(n / 2))], rng)
+      return { rounds: its.length, seconds: t === 'info' ? 15 : t === 'riddle' ? 25 : 20, content: { items: its } }
     },
-    summarize: (ctx) => quizSummary(ctx, (ms) => 10 + Math.max(0, Math.round(10 * (1 - ms / 15000)))),
-  },
-  {
-    id: 'complete',
-    title: 'كملها',
-    tagline: 'بداية جملة… وكل واحد يكملها',
-    emoji: '✍️',
-    categories: ['acquaint', 'laugh'],
-    accent: ['#8b5cf6', '#29c4e6'],
-    minutes: '5–10 د',
-    howTo: ['تظهر بداية جملة.', 'كل واحد يكملها بطريقته.', 'تظهر الإجابتان مع بعض بعد ما يكتب الاثنين.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [roundsOpt('8', ['5', '8', '12'])],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 8)
-      return { rounds: n, seconds: null, content: { items: pick(allComplete, n, rng).map((q): TextItem => ({ type: 'text', prompt: q, skippable: true, placeholder: 'كمّل الجملة…' })) } }
+    summarize: (ctx) => {
+      const secs = ctx.session.round_seconds ?? 15
+      return quizSummary(ctx, (ms) => 10 + Math.max(0, Math.round(10 * (1 - ms / (secs * 1000)))))
     },
-    summarize: talkSummary,
-  },
-  {
-    id: 'what-guess',
-    title: 'وش تتوقع؟',
-    tagline: 'ألغاز ووصف… خمّن الجواب',
-    emoji: '🤔',
-    categories: ['compete', 'quick'],
-    accent: ['#29c4e6', '#6d6bff'],
-    minutes: '4–6 د',
-    howTo: ['يظهر لغز أو وصف.', 'اختر الإجابة قبل نهاية الوقت.', 'كل إجابة صحيحة = نقطة.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [roundsOpt('8', ['6', '8', '12'])],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 8)
-      return { rounds: n, seconds: 25, content: { items: pick(allRiddles, n, rng).map((x) => mcq(rng, x.q, x.a, x.w)) } }
-    },
-    summarize: (ctx) => quizSummary(ctx, () => 1, 'إجابة صحيحة'),
   },
   {
     id: 'sixty',
@@ -553,7 +519,7 @@ const defs: GameDef[] = [
     categories: ['quick', 'compete'],
     accent: ['#ff6b6b', '#f0509a'],
     minutes: '1 د',
-    badge: 'new',
+    stakes: true,
     howTo: ['عندكم 60 ثانية بالضبط.', 'كل واحد يجاوب على أكبر عدد من عبارات صح أو خطأ.', 'تشوف تقدم شريكك مباشرة، والنتائج تظهر بعد انتهاء الوقت.'],
     mode: 'sprint',
     renderer: 'sprint',
@@ -569,40 +535,6 @@ const defs: GameDef[] = [
     },
   },
   {
-    id: 'open-card',
-    title: 'افتح السؤال',
-    tagline: 'اختر بطاقة… ووش يطلع لك!',
-    emoji: '🎴',
-    categories: ['laugh', 'acquaint', 'romance'],
-    accent: ['#ffc861', '#8b5cf6'],
-    minutes: '10–15 د',
-    howTo: ['قدامكم بطاقات مرقمة مقلوبة.', 'صاحب الدور يختار رقم ويفتح البطاقة.', 'ممكن تكون سؤال أو تحدي — جاوب أو نفذ ثم اضغط التالي.'],
-    mode: 'turns',
-    renderer: 'opencard',
-    setup: [
-      {
-        key: 'cards',
-        label: 'عدد البطاقات',
-        kind: 'select',
-        default: '12',
-        options: [
-          { value: '9', label: '9 بطاقات' },
-          { value: '12', label: '12 بطاقة' },
-          { value: '16', label: '16 بطاقة' },
-        ],
-      },
-    ],
-    build: (o, rng) => {
-      const n = N(o, 'cards', 12)
-      return { rounds: n, seconds: null, content: { cards: pick(allOpenCards, n, rng) } }
-    },
-    summarize: (ctx) => {
-      const opened = emptyScores(ctx.players)
-      for (const m of ctx.moves) if (m.move.kind === 'open') opened[m.player_id]++
-      return { scores: opened, unit: 'بطاقة', headline: 'فتحتوا كل الأسرار! 🎴' }
-    },
-  },
-  {
     id: 'number',
     title: 'توقع الرقم',
     tagline: 'رقم سري من 1 إلى 100',
@@ -610,6 +542,7 @@ const defs: GameDef[] = [
     categories: ['compete', 'quick'],
     accent: ['#6d6bff', '#f0509a'],
     minutes: '3–6 د',
+    stakes: true,
     howTo: ['واحد يختار رقمًا سريًا من 1 إلى 100 (محفوظ في الخادم، والثاني ما يقدر يشوفه).', 'الثاني يخمن، والخادم يعطيه تلميح: أكبر أو أصغر.', 'عندك 8 محاولات: كل ما خمنت أسرع زادت نقاطك.', 'بعدها تتبدل الأدوار.'],
     mode: 'turns',
     renderer: 'number',
@@ -646,7 +579,7 @@ const defs: GameDef[] = [
     categories: ['laugh', 'romance'],
     accent: ['#8b5cf6', '#ffc861'],
     minutes: '8–12 د',
-    howTo: ['نبدأ ببداية قصة.', 'كل واحد يضيف جملة بالتناوب (حتى 140 حرف).', 'في النهاية تقرؤون قصتكم كاملة وتقدرون تنسخونها.'],
+    howTo: ['نبدأ ببداية قصة.', 'كل واحد يضيف جملة بالتناوب (حتى 140 حرف).', 'في النهاية تقرؤون قصتكم كاملة وتقدرون تحفظونها في أرشيفكم.'],
     mode: 'turns',
     renderer: 'story',
     setup: [
@@ -672,74 +605,6 @@ const defs: GameDef[] = [
     },
   },
   {
-    id: 'rank',
-    title: 'رتبها',
-    tagline: 'رتب حسب ذوقك… وقارن',
-    emoji: '📊',
-    categories: ['acquaint', 'romance'],
-    accent: ['#29c4e6', '#f0509a'],
-    minutes: '5–8 د',
-    howTo: ['تظهر أربعة خيارات.', 'اضغط عليها بالترتيب من الأحب إلى الأقل.', 'بعد الكشف تشوفون نسبة تشابه ترتيبكم.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [roundsOpt('6', ['4', '6', '10'])],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 6)
-      return { rounds: n, seconds: null, content: { items: pick(allRank, n, rng).map((x): RankItem => ({ type: 'rank', prompt: x.q, options: [...x.o] })) } }
-    },
-    summarize: (ctx) => {
-      const [p1, p2] = ctx.players.map((p) => p.user_id)
-      const sims: number[] = []
-      for (const [, m] of byRound(ctx.answers)) {
-        const a = m.get(p1)?.answer?.order
-        const b = m.get(p2)?.answer?.order
-        if (Array.isArray(a) && Array.isArray(b)) sims.push(rankSimilarity(a, b))
-      }
-      const p = sims.length ? Math.round(sims.reduce((x, y) => x + y, 0) / sims.length) : 0
-      return { percent: p, percentLabel: 'تشابه الذوق', headline: p >= 70 ? 'ذوقكم واحد! 💜' : 'لكل واحد ذوقه 😄', celebrate: p >= 70 }
-    },
-  },
-  {
-    id: 'ask-me',
-    title: 'اسألني',
-    tagline: 'بنك أسئلة… وأسئلتك الخاصة',
-    emoji: '❓',
-    categories: ['acquaint', 'deep', 'romance'],
-    accent: ['#6d6bff', '#8b5cf6'],
-    minutes: '10–20 د',
-    badge: 'new',
-    howTo: ['اختر نوع الأسئلة، وتقدر تضيف أسئلة من عندك.', 'كل واحد يجاوب على نفس السؤال.', 'تقدر تتخطى أو تختار "نتكلم بالصوت".'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [
-      {
-        key: 'cat',
-        label: 'نوع الأسئلة',
-        kind: 'select',
-        default: 'all',
-        options: [{ value: 'all', label: 'منوّع' }, ...Object.keys(allAskMe).map((k) => ({ value: k, label: k }))],
-      },
-      roundsOpt('6', ['4', '6', '10']),
-      { key: 'custom', label: 'أسئلتك الخاصة (اختياري — سؤال في كل سطر)', kind: 'textarea', placeholder: 'مثال: وش أكثر شي تحبه في نهاية الأسبوع؟', maxLines: 5, maxLen: 140 },
-    ],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 6)
-      const custom = (o.custom ?? '')
-        .split('\n')
-        .map((s) => s.trim().slice(0, 140))
-        .filter(Boolean)
-        .slice(0, 5)
-      const pool = o.cat && o.cat !== 'all' && allAskMe[o.cat] ? allAskMe[o.cat] : Object.values(allAskMe).flat()
-      const qs = [...custom.map((q) => ({ q, tag: 'سؤال خاص' })), ...pick(pool, Math.max(0, n - custom.length), rng).map((q) => ({ q, tag: o.cat !== 'all' ? o.cat : undefined }))]
-      return {
-        rounds: qs.length,
-        seconds: null,
-        content: { items: qs.map((x): TextItem => ({ type: 'text', prompt: x.q, tag: x.tag, skippable: true, placeholder: 'اكتب إجابتك…' })) },
-      }
-    },
-    summarize: talkSummary,
-  },
-  {
     id: 'emoji',
     title: 'فك الرموز',
     tagline: 'إيموجي = مثل أو عبارة',
@@ -747,6 +612,7 @@ const defs: GameDef[] = [
     categories: ['quick', 'compete', 'laugh'],
     accent: ['#ffc861', '#29c4e6'],
     minutes: '4–6 د',
+    stakes: true,
     howTo: ['تظهر مجموعة إيموجي.', 'اختر المثل أو العبارة اللي تعبر عنها قبل نهاية الوقت.', 'كل إجابة صحيحة = نقطة.'],
     mode: 'rounds',
     renderer: 'pair',
@@ -757,52 +623,89 @@ const defs: GameDef[] = [
     },
     summarize: (ctx) => quizSummary(ctx, () => 1, 'إجابة صحيحة'),
   },
-  {
-    id: 'remember',
-    title: 'تذكر التفاصيل',
-    tagline: 'شارك… ثم اختبر ذاكرة شريكك',
-    emoji: '🧠',
-    categories: ['memory', 'acquaint', 'compete'],
-    accent: ['#8b5cf6', '#29c4e6'],
-    minutes: '8–12 د',
-    howTo: [
-      'المرحلة الأولى: كل واحد يشارك إجابات قصيرة عن نفسه.',
-      'اقرأ إجابات شريكك زين وركّز!',
-      'المرحلة الثانية: نسألك وش قال شريكك، وتكتب من ذاكرتك.',
-      'شريكك يحكم إذا كانت إجابتك صحيحة.',
-    ],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [
-      {
-        key: 'n',
-        label: 'عدد التفاصيل',
-        kind: 'select',
-        default: '4',
-        options: [
-          { value: '3', label: '3 تفاصيل' },
-          { value: '4', label: '4 تفاصيل' },
-          { value: '6', label: '6 تفاصيل' },
-        ],
-      },
-    ],
-    build: (o, rng) => {
-      const n = N(o, 'n', 4)
-      const ps = pick(allRemember, n, rng)
-      const share: TextItem[] = ps.map((q) => ({ type: 'text', prompt: q, tag: 'شارك', placeholder: 'إجابة قصيرة وواضحة…' }))
-      const order = shuffle(
-        ps.map((_, i) => i),
-        rng,
-      )
-      const recall: TextItem[] = order.map((i) => ({ type: 'text', prompt: ps[i], recallOf: i + 1, judge: 'mutual', tag: 'تذكّر', placeholder: 'وش قال شريكك؟' }))
-      return { rounds: n * 2, seconds: null, content: { items: [...share, ...recall], shareCount: n } }
-    },
-    summarize: (ctx) => {
-      const n = Number(ctx.session.content?.shareCount ?? 0)
-      return judgedSummary(ctx, (r) => r > n)
-    },
-  },
 ]
 
-export const games: GameDef[] = defs
-export const gameById = (id: string | null | undefined) => defs.find((g) => g.id === id)
+/** ترتيب العرض في القائمة */
+const order = [
+  'draw-guess',
+  'know-me',
+  'truth-dare',
+  'taboo',
+  'bet',
+  'who-more',
+  'no-laugh',
+  'reflex',
+  'compliments',
+  'liar',
+  'act',
+  'dream',
+  'draw-describe',
+  'two-truths',
+  'talk',
+  'connect4',
+  'hum',
+  'vault',
+  'word-race',
+  'taste',
+  'dumb',
+  'forbidden',
+  'draw-continue',
+  'never',
+  'twenty',
+  'dots',
+  'chain',
+  'quick',
+  'tongue',
+  'memory',
+  'story',
+  'sixty',
+  'emoji',
+  'number',
+]
+const allDefs = [...defs, ...newGames]
+export const games: GameDef[] = [...allDefs].sort((a, b) => {
+  const ia = order.indexOf(a.id)
+  const ib = order.indexOf(b.id)
+  return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)
+})
+
+/** ألوان الهوية: كل لعبة تاخذ تدرّج من ألوان DUO (#000100 · #A1A6B4 · #94C5CC · #B4D2E7 · #F8F8F8) */
+export const brandPairs: [string, string][] = [
+  ['#94c5cc', '#b4d2e7'],
+  ['#b4d2e7', '#a1a6b4'],
+  ['#a1a6b4', '#94c5cc'],
+  ['#7fb6be', '#dbe9f3'],
+  ['#b4d2e7', '#f8f8f8'],
+  ['#8d97a8', '#b4d2e7'],
+]
+games.forEach((g, i) => {
+  g.accent = brandPairs[i % brandPairs.length]
+})
+
+/** ألعاب قديمة اندمجت في ألعاب جديدة (للغرف اللي كانت مقترحة فيها لعبة قديمة) */
+const legacy: Record<string, string> = {
+  'guess-answer': 'know-me',
+  remember: 'know-me',
+  'ask-me': 'talk',
+  complete: 'talk',
+  'this-or-that': 'taste',
+  compat: 'taste',
+  rank: 'taste',
+  'what-guess': 'quick',
+  'open-card': 'truth-dare',
+}
+export const gameById = (id: string | null | undefined) => allDefs.find((g) => g.id === id)
+export const suggestedGame = (id: string | null | undefined) => gameById(id) ?? gameById(legacy[id ?? ''])
+
+export const contentStats: Record<string, number> = {
+  'know-me': allKnowMe.length + allGuess.length + allRemember.length,
+  talk: allTalk.length,
+  taste: allThisOrThat.length + allCompat.length + allRank.length,
+  'truth-dare': 500,
+  'who-more': allWhoMore.length + allWhoMoreBold.length,
+  never: allNever.length,
+  quick: allQuick.length + allRiddles.length,
+  sixty: allTF.length,
+  emoji: allEmoji.length,
+  story: allStory.length,
+}
