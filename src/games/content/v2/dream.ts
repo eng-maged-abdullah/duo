@@ -9,6 +9,8 @@ const o = (s: string): DreamOption[] =>
     return { t: t.trim(), c: Number(c) as 1 | 2 | 3 | 4 }
   })
 
+import { extraDreamSteps } from './more'
+
 export const dreamPlans: DreamPlan[] = [
   {
     id: 'trip',
@@ -82,3 +84,5 @@ export const dreamPlans: DreamPlan[] = [
     ],
   },
 ]
+
+for (const x of Object.values(extraDreamSteps)) dreamPlans.push({ ...x, steps: x.steps.map((st) => ({ ...st, o: o(st.o) })) })

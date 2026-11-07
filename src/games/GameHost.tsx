@@ -1,23 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { RotateCcw, LayoutGrid, Star, Moon } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Moon } from 'lucide-react'
 import { gameById } from './registry'
 import { PairGame } from './renderers/PairGame'
 import { SprintGame } from './renderers/SprintGame'
-import { MemoryGame, NumberGame, StoryGame, TruthDareGame } from './renderers/TurnGames'
+import { MemoryGame, StoryGame, TruthDareGame } from './renderers/TurnGames'
 import { DrawContinueGame, DrawDescribeGame, DrawGuessGame } from './renderers/DrawGames'
-import { CardsGame, ComplimentsGame, ForbiddenGame, HumGame, NoLaughGame, TongueGame, TwentyGame, TwoTruthsGame } from './renderers/VoiceGames'
+import { CardsGame, ComplimentsGame, ForbiddenGame, HumGame, NoLaughGame, TwentyGame, TwoTruthsGame } from './renderers/VoiceGames'
 import { BetGame, DreamGame, RatedGame, ReflexGame, WordRaceGame } from './renderers/RoundGames'
 import { ChainGame, Connect4Game, DotsGame, LiarGame, VaultGame } from './renderers/BoardGames'
 import { DrawingPreview } from './renderers/DrawCanvas'
 import { nightById } from './nights'
 import { useRoom } from '../lib/rooms/RoomProvider'
-import { roomsApi } from '../lib/rooms/api'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
 import { Confetti } from '../components/ui/Confetti'
-import { useToast } from '../components/ui/Toast'
-import { errorText } from '../lib/i18n'
 import { sfx } from '../lib/sound'
 import { useGameApi } from './engine/useGameApi'
 
@@ -26,6 +23,8 @@ export function GameHost() {
   const def = gameById(session?.game_id)
   if (!session) return null
   if (!def) return <UnknownGame />
+  // قاعدة بيانات قديمة: الأسرار انحفظت مع المحتوى العام بدل ما تنخبى → لازم تحديث
+  if (session.content && '_secrets' in (session.content as object)) return <UnknownGame outdated />
   switch (def.renderer) {
     case 'pair':
       return <PairGame def={def} />
@@ -37,8 +36,6 @@ export function GameHost() {
       return <StoryGame def={def} />
     case 'memory':
       return <MemoryGame def={def} />
-    case 'number':
-      return <NumberGame def={def} />
     case 'drawguess':
       return <DrawGuessGame def={def} />
     case 'drawdescribe':
@@ -57,8 +54,6 @@ export function GameHost() {
       return <NoLaughGame def={def} />
     case 'forbidden':
       return <ForbiddenGame def={def} />
-    case 'tongue':
-      return <TongueGame def={def} />
     case 'rated':
       return <RatedGame def={def} />
     case 'twenty':
@@ -85,12 +80,14 @@ export function GameHost() {
 }
 
 /** لعبة قديمة انحذفت من التحديث وهي شغالة في الغرفة */
-function UnknownGame() {
+function UnknownGame({ outdated }: { outdated?: boolean }) {
   const api = useGameApi()
   return (
     <div className="mx-auto max-w-md glass rounded-3xl p-6 text-center">
-      <p className="text-4xl mb-3">🧩</p>
-      <p className="font-medium mb-4">هذي اللعبة صارت جزء من لعبة جديدة بعد التحديث.</p>
+      <p className="text-4xl mb-3">{outdated ? '🛠️' : '🧩'}</p>
+      <p className="font-medium mb-4">
+        {outdated ? 'قاعدة البيانات تحتاج تحديث قبل هذي اللعبة: شغّل ملف games_v2 في Supabase ← SQL Editor.' : 'هذي اللعبة انشالت أو اندمجت في لعبة ثانية بعد التحديث.'}
+      </p>
       <Button variant="primary" block onClick={() => void api.end()}>
         رجوع لقائمة الألعاب
       </Button>
@@ -111,11 +108,9 @@ export function Results({
   replayBusy: boolean
   onNightNext?: () => void
 }) {
-  const { session, answers, moves, players, myId, isHost, partner, room } = useRoom()
-  const toast = useToast()
+  const { session, answers, moves, players, myId, isHost, partner } = useRoom()
   const def = gameById(session?.game_id)
   const played = useRef<string | null>(null)
-  const [saved, setSaved] = useState(false)
   const sum = def && session ? def.summarize({ session, answers, moves, players: [...players].sort((a, b) => a.seat - b.seat) }) : null
   useEffect(() => {
     if (sum?.celebrate && session && played.current !== session.id) {
@@ -139,16 +134,6 @@ export function Results({
         : ids[1]
       : null
   const turnsTotal = Number(session.content?.turns ?? 0)
-
-  const saveMoment = async () => {
-    if (!room || saved) return
-    const body = [...(sum.lines ?? []), ...(storyLines ? [storyLines.filter(Boolean).join(' ')] : [])].join('\n').slice(0, 1400)
-    const res = await roomsApi.momentAdd(room.id, 'saved', `${def.title} — ${sum.headline}`.slice(0, 120), body, def.emoji)
-    if (res.ok) {
-      setSaved(true)
-      toast('انحفظت في أرشيفكم ⭐', 'success')
-    } else toast(errorText(res.error), 'error')
-  }
 
   return (
     <div className="mx-auto max-w-xl">
@@ -217,9 +202,6 @@ export function Results({
 
         {sum.note && <p className="mt-4 text-xs text-mist">{sum.note}</p>}
 
-        <button onClick={() => void saveMoment()} disabled={saved} className="mt-4 inline-flex items-center gap-1.5 text-sm text-mist hover:text-cloud disabled:opacity-60">
-          <Star className={`size-4 ${saved ? 'fill-champagne text-champagne' : ''}`} /> {saved ? 'محفوظة في أرشيفكم' : 'احفظ هذي اللحظة في أرشيفنا'}
-        </button>
 
         {session.status === 'abandoned' && <p className="mt-4 text-sm text-champagne">انتهت اللعبة قبل اكتمالها.</p>}
       </motion.div>
@@ -244,7 +226,7 @@ export function Results({
               <p className="text-center text-sm text-mist">التالي: {nextDef.emoji} {nextDef.title} — بانتظار منشئ الغرفة</p>
             )
           ) : (
-            <p className="text-center">خلصت السهرة 🌙 — وش رأيكم تكتبون لبعض رسالة مقفلة تنفتح بكرة؟ 💌</p>
+            <p className="text-center">خلصت السهرة 🌙 تصبحون على خير 💜</p>
           )}
         </div>
       )}

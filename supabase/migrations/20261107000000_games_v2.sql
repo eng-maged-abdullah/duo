@@ -2,9 +2,8 @@
 -- DUO — تحديث الألعاب الكبير (النسخة الثانية)
 -- شغّل هذا الملف مرة واحدة في SQL Editor (بعد الملفين السابقين)
 -- آمن لإعادة التشغيل
--- يضيف: أسرار الألعاب (كلمات الرسم، أوراق النرد، الخزنة…)، الرسم المباشر،
---        تقييم الإجابات، الرسائل المقفلة، قصتنا وقائمة أحلامنا والأرشيف،
---        سؤال اليوم وسلسلة الأيام، وإحصائيات الغرفة.
+-- يضيف: أسرار الألعاب (كلمات الرسم، النرد، الخزنة…)، الرسم المباشر، تقييم الإجابات،
+--        وحذف الغرف اللي ما دخلها أحد لمدة ساعة.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -39,59 +38,22 @@ create table if not exists public.game_strokes (
 create index if not exists game_strokes_idx on public.game_strokes (session_id, round, id);
 create index if not exists game_strokes_room_idx on public.game_strokes (room_id);
 
--- رسائل مقفلة حتى تاريخ معيّن (لا يقرأ نصها إلا كاتبها قبل موعد فتحها)
-create table if not exists public.room_letters (
-  id          uuid primary key default gen_random_uuid(),
-  room_id     uuid not null references public.rooms (id) on delete cascade,
-  author_id   uuid not null,
-  body        text not null check (char_length(body) between 1 and 2000),
-  unlock_at   timestamptz not null,
-  created_at  timestamptz not null default now()
-);
-create index if not exists room_letters_room_idx on public.room_letters (room_id, unlock_at);
-
--- قصتنا (خط زمني)، قائمة أحلامنا، وأرشيف اللحظات
-create table if not exists public.room_moments (
-  id          uuid primary key default gen_random_uuid(),
-  room_id     uuid not null references public.rooms (id) on delete cascade,
-  author_id   uuid not null,
-  kind        text not null check (kind in ('timeline', 'bucket', 'saved')),
-  title       text not null check (char_length(title) between 1 and 120),
-  body        text not null default '' check (char_length(body) <= 1500),
-  emoji       text not null default '' check (char_length(emoji) <= 8),
-  happened_on date,
-  done        boolean not null default false,
-  done_at     timestamptz,
-  created_at  timestamptz not null default now()
-);
-create index if not exists room_moments_room_idx on public.room_moments (room_id, kind, created_at desc);
-
--- سؤال اليوم: إجابة شريكك تظهر لك فقط بعد ما تجاوب
-create table if not exists public.daily_answers (
-  room_id     uuid not null references public.rooms (id) on delete cascade,
-  day         date not null,
-  user_id     uuid not null,
-  answer      text not null check (char_length(answer) between 1 and 500),
-  created_at  timestamptz not null default now(),
-  primary key (room_id, day, user_id)
-);
-
 alter table public.game_strokes  enable row level security;
-alter table public.room_letters  enable row level security;
-alter table public.room_moments  enable row level security;
-alter table public.daily_answers enable row level security;
+
+-- ميزات "ركننا" انشالت (الغرف تنحذف بعد ساعة بدون نشاط) — نحذفها لو كانت موجودة من نسخة سابقة
+drop function if exists public.letter_create(uuid, text, timestamptz), public.letter_list(uuid), public.letter_delete(uuid),
+  public.moment_add(uuid, text, text, text, text, date), public.moment_done(uuid, boolean), public.moment_delete(uuid),
+  public.daily_answer(uuid, date, text), public.daily_get(uuid, date), public.room_stats(uuid);
+drop table if exists public.room_letters, public.room_moments, public.daily_answers;
 
 drop policy if exists game_strokes_select on public.game_strokes;
 create policy game_strokes_select on public.game_strokes
   for select to authenticated using (public.is_room_member(room_id));
 
-drop policy if exists room_moments_select on public.room_moments;
-create policy room_moments_select on public.room_moments
-  for select to authenticated using (public.is_room_member(room_id));
--- room_letters و daily_answers: بدون سياسات قراءة مباشرة إطلاقًا (القراءة عبر الدوال فقط)
+-- (لا يوجد)
 
-revoke all on public.game_strokes, public.room_letters, public.room_moments, public.daily_answers from anon, authenticated;
-grant select on public.game_strokes, public.room_moments to authenticated;
+revoke all on public.game_strokes from anon, authenticated;
+grant select on public.game_strokes to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 3) دوال مساعدة
@@ -527,200 +489,16 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- 9) الرسائل المقفلة
--- ---------------------------------------------------------------------
-create or replace function public.letter_create(p_room uuid, p_body text, p_unlock_at timestamptz)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare
-  uid uuid := auth.uid();
-  b text := btrim(coalesce(p_body, ''));
-  lid uuid;
-begin
-  if uid is null then return _err('no_session'); end if;
-  if not is_room_member(p_room) then return _err('not_member'); end if;
-  if char_length(b) = 0 then return _err('empty'); end if;
-  if char_length(b) > 2000 then return _err('too_long'); end if;
-  if p_unlock_at is null or p_unlock_at > now() + interval '10 years' then return _err('bad_request'); end if;
-  if (select count(*) from room_letters where room_id = p_room and author_id = uid and created_at > now() - interval '1 day') >= 20 then
-    return _err('rate_limited');
-  end if;
-  insert into room_letters (room_id, author_id, body, unlock_at)
-  values (p_room, uid, b, greatest(p_unlock_at, now())) returning id into lid;
-  return jsonb_build_object('ok', true, 'id', lid);
-end $$;
-
-create or replace function public.letter_list(p_room uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid();
-begin
-  if uid is null then return _err('no_session'); end if;
-  if not is_room_member(p_room) then return _err('not_member'); end if;
-  return jsonb_build_object('ok', true, 'now', now(), 'letters', coalesce((
-    select jsonb_agg(jsonb_build_object(
-             'id', id, 'author_id', author_id, 'unlock_at', unlock_at, 'created_at', created_at,
-             'open', unlock_at <= now(),
-             'body', case when author_id = uid or unlock_at <= now() then body else null end)
-           order by unlock_at desc)
-    from room_letters where room_id = p_room), '[]'::jsonb));
-end $$;
-
-create or replace function public.letter_delete(p_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid();
-begin
-  if uid is null then return _err('no_session'); end if;
-  delete from room_letters where id = p_id and author_id = uid;
-  if not found then return _err('not_allowed'); end if;
-  return jsonb_build_object('ok', true);
-end $$;
-
--- ---------------------------------------------------------------------
--- 10) قصتنا / قائمة أحلامنا / أرشيفنا
--- ---------------------------------------------------------------------
-create or replace function public.moment_add(p_room uuid, p_kind text, p_title text, p_body text default '',
-                                             p_emoji text default '', p_date date default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare
-  uid uuid := auth.uid();
-  t text := btrim(coalesce(p_title, ''));
-  mid uuid;
-begin
-  if uid is null then return _err('no_session'); end if;
-  if not is_room_member(p_room) then return _err('not_member'); end if;
-  if p_kind not in ('timeline', 'bucket', 'saved') then return _err('bad_request'); end if;
-  if char_length(t) = 0 then return _err('empty'); end if;
-  if char_length(t) > 120 or char_length(coalesce(p_body, '')) > 1500 or char_length(coalesce(p_emoji, '')) > 8 then
-    return _err('too_long');
-  end if;
-  if (select count(*) from room_moments where room_id = p_room) >= 2000 then return _err('rate_limited'); end if;
-  if (select count(*) from room_moments where room_id = p_room and author_id = uid and created_at > now() - interval '1 minute') >= 15 then
-    return _err('rate_limited');
-  end if;
-  insert into room_moments (room_id, author_id, kind, title, body, emoji, happened_on)
-  values (p_room, uid, p_kind, t, btrim(coalesce(p_body, '')), coalesce(p_emoji, ''), p_date)
-  returning id into mid;
-  return jsonb_build_object('ok', true, 'id', mid);
-end $$;
-
-create or replace function public.moment_done(p_id uuid, p_done boolean)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); rid uuid;
-begin
-  if uid is null then return _err('no_session'); end if;
-  select room_id into rid from room_moments where id = p_id;
-  if rid is null or not is_room_member(rid) then return _err('not_member'); end if;
-  update room_moments set done = coalesce(p_done, false), done_at = case when p_done then now() else null end where id = p_id;
-  return jsonb_build_object('ok', true);
-end $$;
-
-create or replace function public.moment_delete(p_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); rid uuid;
-begin
-  if uid is null then return _err('no_session'); end if;
-  select room_id into rid from room_moments where id = p_id;
-  if rid is null or not is_room_member(rid) then return _err('not_member'); end if;
-  -- قائمة الأحلام مشتركة (يحذف أي واحد)، والذكريات يحذفها كاتبها فقط
-  delete from room_moments where id = p_id and (kind = 'bucket' or author_id = uid);
-  if not found then return _err('not_allowed'); end if;
-  return jsonb_build_object('ok', true);
-end $$;
-
--- ---------------------------------------------------------------------
--- 11) سؤال اليوم + سلسلة الأيام
--- ---------------------------------------------------------------------
-create or replace function public.daily_answer(p_room uuid, p_day date, p_text text)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare
-  uid uuid := auth.uid();
-  b text := btrim(coalesce(p_text, ''));
-begin
-  if uid is null then return _err('no_session'); end if;
-  if not is_room_member(p_room) then return _err('not_member'); end if;
-  if p_day is null or p_day not between current_date - 1 and current_date + 1 then return _err('bad_request'); end if;
-  if char_length(b) = 0 then return _err('empty'); end if;
-  if char_length(b) > 500 then return _err('too_long'); end if;
-  insert into daily_answers (room_id, day, user_id, answer) values (p_room, p_day, uid, b)
-  on conflict (room_id, day, user_id) do nothing;
-  return jsonb_build_object('ok', true);
-end $$;
-
-create or replace function public.daily_get(p_room uuid, p_day date)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare
-  uid uuid := auth.uid();
-  mine text;
-  theirs text;
-  their_done boolean;
-  streak int := 0;
-  d date;
-  hist jsonb;
-begin
-  if uid is null then return _err('no_session'); end if;
-  if not is_room_member(p_room) then return _err('not_member'); end if;
-  if p_day is null then return _err('bad_request'); end if;
-  select answer into mine from daily_answers where room_id = p_room and day = p_day and user_id = uid;
-  select answer into theirs from daily_answers where room_id = p_room and day = p_day and user_id <> uid limit 1;
-  their_done := theirs is not null;
-  if mine is null then theirs := null; end if;
-
-  -- عدد الأيام المتتالية اللي جاوبتوا فيها الاثنين (اليوم لا يكسر السلسلة إذا ما خلص بعد)
-  d := p_day;
-  if (select count(*) from daily_answers where room_id = p_room and day = d) < 2 then d := d - 1; end if;
-  while (select count(*) from daily_answers where room_id = p_room and day = d) >= 2 and streak < 3660 loop
-    streak := streak + 1;
-    d := d - 1;
-  end loop;
-
-  -- الأيام السابقة: لا تظهر إجابة الشريك إلا إذا جاوبت أنت ذاك اليوم
-  select coalesce(jsonb_agg(x order by x ->> 'day' desc), '[]'::jsonb) into hist from (
-    select jsonb_build_object('day', a.day, 'mine', a.answer, 'theirs', b.answer) as x
-    from daily_answers a
-    join daily_answers b on b.room_id = a.room_id and b.day = a.day and b.user_id <> a.user_id
-    where a.room_id = p_room and a.user_id = uid and a.day < p_day
-    order by a.day desc limit 30
-  ) h;
-
-  return jsonb_build_object('ok', true, 'mine', mine, 'theirs', theirs, 'their_done', their_done,
-                            'streak', streak, 'history', hist);
-end $$;
-
--- ---------------------------------------------------------------------
--- 12) إحصائيات الغرفة
--- ---------------------------------------------------------------------
-create or replace function public.room_stats(p_room uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid();
-begin
-  if uid is null then return _err('no_session'); end if;
-  if not is_room_member(p_room) then return _err('not_member'); end if;
-  return jsonb_build_object('ok', true,
-    'games', (select count(*) from game_sessions where room_id = p_room and status = 'finished'),
-    'days', (select count(distinct (created_at at time zone 'Asia/Riyadh')::date) from game_sessions where room_id = p_room),
-    'since', (select created_at from rooms where id = p_room),
-    'letters', (select count(*) from room_letters where room_id = p_room),
-    'moments', (select count(*) from room_moments where room_id = p_room and kind = 'timeline'),
-    'dreams_done', (select count(*) from room_moments where room_id = p_room and kind = 'bucket' and done),
-    'dreams', (select count(*) from room_moments where room_id = p_room and kind = 'bucket'),
-    'daily', (select count(distinct day) from daily_answers where room_id = p_room)
-  );
-end $$;
-
--- ---------------------------------------------------------------------
 -- 13) الصلاحيات
 -- ---------------------------------------------------------------------
 revoke execute on function public._norm(text), public._add_move(uuid, uuid, uuid, jsonb) from public, anon, authenticated;
 revoke execute on function
   public.get_secrets(uuid), public.secret_action(uuid, text, text, jsonb), public.add_stroke(uuid, int, jsonb),
-  public.rate_answer(uuid, int, uuid, int), public.letter_create(uuid, text, timestamptz), public.letter_list(uuid),
-  public.letter_delete(uuid), public.moment_add(uuid, text, text, text, text, date), public.moment_done(uuid, boolean),
-  public.moment_delete(uuid), public.daily_answer(uuid, date, text), public.daily_get(uuid, date), public.room_stats(uuid)
+  public.rate_answer(uuid, int, uuid, int)
 from public, anon;
 grant execute on function
   public.get_secrets(uuid), public.secret_action(uuid, text, text, jsonb), public.add_stroke(uuid, int, jsonb),
-  public.rate_answer(uuid, int, uuid, int), public.letter_create(uuid, text, timestamptz), public.letter_list(uuid),
-  public.letter_delete(uuid), public.moment_add(uuid, text, text, text, text, date), public.moment_done(uuid, boolean),
-  public.moment_delete(uuid), public.daily_answer(uuid, date, text), public.daily_get(uuid, date), public.room_stats(uuid),
+  public.rate_answer(uuid, int, uuid, int),
   public.start_game(uuid, text, uuid, text, int, int, jsonb), public.submit_move(uuid, int, jsonb)
 to authenticated;
 

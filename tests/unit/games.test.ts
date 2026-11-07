@@ -3,7 +3,7 @@ import { games, gameById } from '../../src/games/registry'
 import type { ChoiceItem, RoundItem } from '../../src/games/types'
 import { rankSimilarity, subjectOf } from '../../src/games/engine/helpers'
 import { seededRng } from '../../src/utils/random'
-import type { Answer, GameSession, Move, Player } from '../../src/types/db'
+import type { Answer, GameSession, Player } from '../../src/types/db'
 
 const A = 'aaaaaaaa-0000-0000-0000-000000000001'
 const B = 'bbbbbbbb-0000-0000-0000-000000000002'
@@ -49,9 +49,9 @@ const ans = (round: number, player: string, answer: Record<string, unknown>, jud
 })
 
 describe('كل الألعاب', () => {
-  it('٣٤ لعبة بمعرفات فريدة', () => {
-    expect(games.length).toBe(34)
-    expect(new Set(games.map((g) => g.id)).size).toBe(34)
+  it('٣٠ لعبة بمعرفات فريدة', () => {
+    expect(games.length).toBe(30)
+    expect(new Set(games.map((g) => g.id)).size).toBe(30)
     for (const g of games) expect(g.id).toMatch(/^[a-z0-9_-]{2,32}$/)
   })
 
@@ -96,8 +96,8 @@ describe('كل الألعاب', () => {
   }
 
   it('ألعاب الإجابة الصحيحة تحافظ على الإجابة بعد خلط الخيارات', () => {
-    const g = gameById('quick')!
-    const b = g.build({ rounds: '15' }, seededRng(7))
+    const g = gameById('emoji')!
+    const b = g.build({ rounds: '12' }, seededRng(7))
     for (const it of b.content.items as ChoiceItem[]) {
       expect(typeof it.correct).toBe('number')
     }
@@ -135,15 +135,15 @@ describe('احتساب النتائج', () => {
     expect(sum.scores).toEqual({ [A]: 0, [B]: 2 })
   })
 
-  it('جاوب بسرعة: صحيح + نقاط سرعة، والخطأ صفر', () => {
+  it('فك الرموز: الإجابة الصحيحة نقطة والخطأ صفر', () => {
     const content = { items: [{ type: 'choice', prompt: 'x', options: ['a', 'b'], correct: 1 }] }
-    const sum = gameById('quick')!.summarize({
-      session: session('quick', content, { round_seconds: 15 }),
+    const sum = gameById('emoji')!.summarize({
+      session: session('emoji', content, { round_seconds: 25 }),
       players,
       moves: [],
       answers: [ans(1, A, { choice: 1, _ms: 0 }), ans(1, B, { choice: 0, _ms: 100 })],
     })
-    expect(sum.scores).toEqual({ [A]: 20, [B]: 0 })
+    expect(sum.scores).toEqual({ [A]: 1, [B]: 0 })
   })
 
   it('ذوقنا: نسبة التطابق تتجاهل التخطي', () => {
@@ -177,15 +177,6 @@ describe('احتساب النتائج', () => {
       answers: [ans(1, A, { text: 'قهوة' }), ans(1, B, { text: 'قهوة' }, true), ans(2, B, { text: 'شاي' }), ans(2, A, { text: 'عصير' }, false)],
     })
     expect(sum.scores).toEqual({ [A]: 0, [B]: 1 })
-  })
-
-  it('توقع الرقم: نقاط أكثر للتخمين الأسرع', () => {
-    const moves: Move[] = [
-      { session_id: 's', room_id: 'r', seq: 4, player_id: B, created_at: '', move: { kind: 'guess', round: 1, value: 42, hint: 'correct', attempt: 3, round_over: true, solved: true, secret: 42 } },
-      { session_id: 's', room_id: 'r', seq: 9, player_id: A, created_at: '', move: { kind: 'guess', round: 2, value: 7, hint: 'higher', attempt: 8, round_over: true, solved: false, secret: 9 } },
-    ]
-    const sum = gameById('number')!.summarize({ session: session('number', {}, { mode: 'turns' }), players, moves, answers: [] })
-    expect(sum.scores).toEqual({ [A]: 0, [B]: 6 })
   })
 
   it('ذاكرة DUO: النقاط من حالة الخادم', () => {

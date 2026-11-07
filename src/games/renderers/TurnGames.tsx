@@ -238,11 +238,15 @@ export function MemoryGame({ def }: { def: GameDef }) {
       else {
         sfx('wrong')
         setPeek([last.move.first, last.move.card])
-        const t = setTimeout(() => setPeek([]), 1400)
-        return () => clearTimeout(t)
       }
     } else sfx('flip')
   }, [last])
+  // مؤقت مستقل: إعادة جلب الحركات لا تلغيه فتعلق البطاقات مكشوفة
+  useEffect(() => {
+    if (!peek.length) return
+    const t = setTimeout(() => setPeek([]), 1400)
+    return () => clearTimeout(t)
+  }, [peek])
 
   const visible = (i: number) => matched.has(i) || pending === i || peek.includes(i)
   const scores = (s.state?.scores ?? {}) as Record<string, number>

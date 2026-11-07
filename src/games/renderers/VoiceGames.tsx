@@ -11,7 +11,7 @@ import { useToast } from '../../components/ui/Toast'
 import { sfx, vibrate } from '../../lib/sound'
 import { nameOf, otherOf } from '../engine/helpers'
 import { normWord } from '../engine/boards'
-import { BigTimer, Card, Flash, ScoreBar, Stars, StarsInput, TurnBanner, VoiceHint, countKind, useMoveFlash, useTurn } from './common'
+import { BigTimer, Card, Flash, ScoreBar, TurnBanner, VoiceHint, countKind, useMoveFlash, useTurn } from './common'
 
 function useScores(def: GameDef) {
   const { session, answers, moves, players } = useRoom()
@@ -28,13 +28,14 @@ export function CardsGame({ def }: { def: GameDef }) {
   const { myTurn, turnName } = useTurn()
   const secrets = useSecrets()
   const s = session!
-  const c = s.content as { variant: 'taboo' | 'act'; turns: number; seconds: number }
-  const taboo = c.variant === 'taboo'
+  const c = s.content as { variant: 'taboo' | 'act' | 'mix'; turns: number; seconds: number }
+  const taboo = c.variant !== 'act'
   const turn = Math.min(countKind(moves, 'end') + 1, c.turns)
   const deck = (secrets[`d${turn}`]?.v ?? []) as { w: string; f: string[] }[]
   const started = moves.find((m) => m.move.kind === 'start' && Number(m.move.turn) === turn)
   const results = moves.filter((m) => m.move.kind === 'card' && Number(m.move.turn) === turn)
   const card = deck[results.length]
+  const cardTaboo = Boolean(card?.f?.length)
   const scores = useScores(def)
   const last = turn >= c.turns
   const [over, setOver] = useState(false)
@@ -84,7 +85,8 @@ export function CardsGame({ def }: { def: GameDef }) {
               <>
                 <motion.div key={card.w} initial={{ rotateY: 90, opacity: 0 }} animate={{ rotateY: 0, opacity: 1 }} className="ring-gradient glass rounded-[1.75rem] p-6 text-center mb-4">
                   <p className="font-display text-3xl">{card.w}</p>
-                  {taboo && (
+                  {!cardTaboo && <p className="mt-3 text-sm text-mist">🎭 مثّلها بصوتك — بدون ما تقول الكلمة</p>}
+                  {cardTaboo && (
                     <div className="mt-4 border-t border-white/10 pt-3">
                       <p className="text-xs text-rose-300 mb-2">ممنوع تقول 🚫</p>
                       <div className="flex flex-wrap justify-center gap-2">
@@ -97,11 +99,11 @@ export function CardsGame({ def }: { def: GameDef }) {
                     </div>
                   )}
                 </motion.div>
-                <div className={`grid gap-3 ${taboo ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <div className={`grid gap-3 ${cardTaboo ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <Button variant="primary" size="lg" className="!px-2" disabled={api.busy} onClick={() => res('got')}>
                     ✅ عرفها
                   </Button>
-                  {taboo && (
+                  {cardTaboo && (
                     <Button variant="danger" size="lg" className="!px-2" disabled={api.busy} onClick={() => res('foul')}>
                       🚫 غلطت
                     </Button>
@@ -132,7 +134,7 @@ export function CardsGame({ def }: { def: GameDef }) {
           <Card className="text-center mb-3">
             <p className="text-sm text-mist">انتهى الوقت ⏰</p>
             <p className="font-display text-2xl mt-1">
-              {nameOf(s.turn_player ?? '', players)} جاب {got} {taboo ? 'كلمة' : 'شخصية'}
+              {nameOf(s.turn_player ?? '', players)} جاب {got} {got === 1 ? 'بطاقة' : 'بطاقات'}
             </p>
           </Card>
           <div className="flex flex-wrap gap-1.5 justify-center mb-4">
@@ -441,41 +443,6 @@ export function ForbiddenGame({ def }: { def: GameDef }) {
             {last ? 'عرض النتيجة' : 'الجولة الجاية'}
           </Button>
         </>
-      )}
-    </GameShell>
-  )
-}
-
-/* ================================ قولها بسرعة ================================ */
-export function TongueGame({ def }: { def: GameDef }) {
-  const { session, moves, players } = useRoom()
-  const api = useGameApi()
-  const { myTurn, turnName } = useTurn()
-  const s = session!
-  const c = s.content as { turns: number; phrases: string[] }
-  const turn = Math.min(countKind(moves, 'rate') + 1, c.turns)
-  const phrase = c.phrases[turn - 1]
-  const prev = [...moves].reverse().find((m) => m.move.kind === 'rate')
-  const scores = useScores(def)
-  const last = turn >= c.turns
-  return (
-    <GameShell def={def} progress={`الجملة ${turn} من ${c.turns}`} onEnd={() => void api.end()}>
-      <VoiceHint />
-      <ScoreBar scores={scores} unit="⭐" highlight={s.turn_player ?? undefined} />
-      <TurnBanner myTurn={myTurn} name={turnName} mine="دورك! قلها ٣ مرات بسرعة 👅" theirs={`${turnName} بيقولها… قيّمه!`} />
-      <PromptCard tag="٣ مرات ورا بعض">{phrase}</PromptCard>
-      {prev && (
-        <p className="text-center text-sm text-mist mb-3">
-          {nameOf(otherOf(prev.player_id, players), players)} أخذ <Stars n={Number(prev.move.stars)} />
-        </p>
-      )}
-      {myTurn ? (
-        <WaitingCard text="قلها بصوت عالي في المكالمة 🎙️" sub="شريكك بيقيّمك" />
-      ) : (
-        <Card className="text-center">
-          <p className="mb-2 font-medium">كم يستاهل؟</p>
-          <StarsInput disabled={api.busy} onRate={(n) => void api.move({ kind: 'rate', turn, stars: n, pass_turn: true, finish: last }, ['stale'])} />
-        </Card>
       )}
     </GameShell>
   )

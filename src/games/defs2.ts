@@ -3,21 +3,20 @@ import type { GameDef, Summary, SummaryCtx, TextItem } from './types'
 import { shuffle } from '../utils/random'
 import { fresh as pick } from './engine/fresh'
 import { byRound, emptyScores, nameOf, otherOf, pct, winnerHeadline } from './engine/helpers'
-import { continueThemes, drawEasy, drawHard, drawMedium } from './content/v2/draw'
+import { raceLetters, twoTruthsThemes } from './content/v2/voice'
 import {
-  actRoles,
-  complimentTopics,
-  forbiddenRules,
-  forbiddenTopics,
-  humCategories,
-  noLaughIdeas,
-  raceCategories,
-  raceLetters,
-  tabooCards,
-  tongueTwisters,
-  twentyCategories,
-  twoTruthsThemes,
-} from './content/v2/voice'
+  allAct as actRoles,
+  allCompliments as complimentTopics,
+  allContinueThemes as continueThemes,
+  allForbiddenRules as forbiddenRules,
+  allForbiddenTopics as forbiddenTopics,
+  allHum as humCategories,
+  allNoLaugh as noLaughIdeas,
+  allRace as raceCategories,
+  allTaboo as tabooCards,
+  allTwenty as twentyCategories,
+  drawWords,
+} from './content/v2/index'
 import { dreamPlans } from './content/v2/dream'
 import { allKnowMe, allQuick, allRiddles } from './banks'
 import { makeReflex, makeScene, makeVault } from './engine/generators'
@@ -62,9 +61,9 @@ const drawGuess: GameDef = {
   setup: [turnsOpt('4', ['4', '6', '8']), secsOpt('80', ['60', '80', '100'])],
   build: (o, rng) => {
     const n = N(o, 'turns', 4)
-    const e = pick(drawEasy, n, rng)
-    const m = pick(drawMedium, n, rng)
-    const h = pick(drawHard, n, rng)
+    const e = pick(drawWords.easy, n, rng)
+    const m = pick(drawWords.medium, n, rng)
+    const h = pick(drawWords.hard, n, rng)
     return {
       rounds: n,
       seconds: null,
@@ -171,7 +170,7 @@ const drawContinue: GameDef = {
   },
 }
 
-/* =========================== الكلمة الممنوعة / مثّلها =========================== */
+/* =========================== الكلمة الممنوعة + مثّلها بالصوت (لعبة وحدة) =========================== */
 function cardsSummary(ctx: SummaryCtx, label: string): Summary {
   const scores = emptyScores(ctx.players)
   const lines: string[] = []
@@ -186,12 +185,13 @@ function cardsSummary(ctx: SummaryCtx, label: string): Summary {
     lines.push(`${nameOf(who, ctx.players)}: ${got} ${label}${foul ? ` · ${foul} مخالفة 🚫` : ''}`)
   }
   for (const k of Object.keys(scores)) scores[k] = Math.max(0, scores[k])
-  return { scores, unit: 'نقطة', headline: winnerHeadline(scores, ctx.players, '{name} أفضل ' + (label === 'كلمة' ? 'واصف! 🗣️' : 'ممثل! 🎭')), lines, celebrate: true }
+  return { scores, unit: 'نقطة', headline: winnerHeadline(scores, ctx.players, '{name} نجم الليلة! 🌟'), lines, celebrate: true }
 }
+
 const taboo: GameDef = {
   id: 'taboo',
-  title: 'الكلمة الممنوعة',
-  tagline: 'وصّف الكلمة… بدون الكلمات الممنوعة!',
+  title: 'وصّفها أو مثّلها',
+  tagline: 'وصّف بدون الكلمات الممنوعة… أو مثّل بصوتك!',
   emoji: '🤐',
   categories: ['laugh', 'compete'],
   accent: ['#ff6b6b', '#ffc861'],
@@ -201,62 +201,45 @@ const taboo: GameDef = {
   voice: true,
   stakes: true,
   howTo: [
-    'صاحب الدور يشوف كلمة وتحتها ٤ كلمات ممنوع يقولها.',
-    'يوصفها بالصوت، وشريكه يحاول يعرفها بأسرع وقت.',
-    'عرفها؟ ✅ نقطة. قلت كلمة ممنوعة؟ 🚫 تنخصم نقطة. تقدر تتخطى.',
-    'شريكك يقدر يضغط 🚨 إذا سمعك تقول كلمة ممنوعة!',
-    'أكبر عدد كلمات قبل ما يخلص الوقت.',
+    'صاحب الدور تطلع له بطاقة مخفية عن شريكه.',
+    'بطاقة 🤐: وصّف الكلمة بصوتك بدون ما تقول الكلمات الممنوعة تحتها.',
+    'بطاقة 🎭: مثّل الشخصية أو الموقف بصوتك بس.',
+    'عرفها شريكك؟ ✅ نقطة. قلت كلمة ممنوعة؟ 🚫 تنخصم نقطة. تقدر تتخطى.',
+    'شريكك يقدر يضغط 🚨 إذا سمعك تقول كلمة ممنوعة! أكبر عدد قبل ما يخلص الوقت.',
   ],
   mode: 'turns',
   renderer: 'cards',
-  setup: [turnsOpt('4', ['2', '4', '6']), secsOpt('60', ['45', '60', '90'])],
+  setup: [
+    sel('mode', 'نوع البطاقات', 'mix', [['mix', 'منوّع ✨'], ['taboo', 'وصف بكلمات ممنوعة 🤐'], ['act', 'تمثيل بالصوت 🎭']]),
+    turnsOpt('4', ['2', '4', '6']),
+    secsOpt('60', ['45', '60', '90']),
+  ],
   build: (o, rng) => {
     const n = N(o, 'turns', 4)
-    const cards = shuffle(pick(tabooCards, n * 14, rng), rng)
+    const per = 14
+    const mode = o.mode ?? 'mix'
+    const words = shuffle(pick(tabooCards, n * per, rng), rng)
+    const roles = shuffle(pick(actRoles, n * per, rng), rng).map((w) => ({ w, f: [] as string[] }))
+    const deck = (i: number) => {
+      const t = words.slice(i * per, i * per + per)
+      const a = roles.slice(i * per, i * per + per)
+      if (mode === 'taboo') return t
+      if (mode === 'act') return a
+      return shuffle([...t.slice(0, per / 2), ...a.slice(0, per / 2)], rng)
+    }
     return {
       rounds: n,
       seconds: null,
       content: {
         free: true,
-        variant: 'taboo',
+        variant: mode,
         turns: n,
         seconds: N(o, 'secs', 60),
-        _secrets: Array.from({ length: n }, (_, i) => ({ slot: `d${i + 1}`, owner: ownerOf(i + 1), value: cards.slice(i * 14, i * 14 + 14) })),
+        _secrets: Array.from({ length: n }, (_, i) => ({ slot: `d${i + 1}`, owner: ownerOf(i + 1), value: deck(i) })),
       },
     }
   },
-  summarize: (ctx) => cardsSummary(ctx, 'كلمة'),
-}
-const act: GameDef = {
-  id: 'act',
-  title: 'مثّلها بالصوت',
-  tagline: 'قلّد الشخصية بصوتك… وهو يخمّن',
-  emoji: '🎭',
-  categories: ['laugh'],
-  accent: ['#8b5cf6', '#ff9a62'],
-  minutes: '6–12 د',
-  badge: 'new',
-  voice: true,
-  howTo: ['صاحب الدور تطلع له شخصية أو موقف (مخفي عن شريكه).', 'يمثّلها بصوته في المكالمة بدون ما يقول اسمها.', 'شريكه يخمّن بالصوت، وإذا عرفها اضغط ✅.', 'أكبر عدد قبل ما يخلص الوقت!'],
-  mode: 'turns',
-  renderer: 'cards',
-  setup: [turnsOpt('4', ['2', '4', '6']), secsOpt('60', ['45', '60', '90'])],
-  build: (o, rng) => {
-    const n = N(o, 'turns', 4)
-    const cards = shuffle(pick(actRoles, n * 10, rng), rng).map((w) => ({ w, f: [] as string[] }))
-    return {
-      rounds: n,
-      seconds: null,
-      content: {
-        free: true,
-        variant: 'act',
-        turns: n,
-        seconds: N(o, 'secs', 60),
-        _secrets: Array.from({ length: n }, (_, i) => ({ slot: `d${i + 1}`, owner: ownerOf(i + 1), value: cards.slice(i * 10, i * 10 + 10) })),
-      },
-    }
-  },
-  summarize: (ctx) => cardsSummary(ctx, 'شخصية'),
+  summarize: (ctx) => cardsSummary(ctx, 'بطاقة'),
 }
 
 /* =========================== دندن وخمّن =========================== */
@@ -497,33 +480,6 @@ const forbidden: GameDef = {
 }
 
 /* =========================== قولها بسرعة =========================== */
-const tongue: GameDef = {
-  id: 'tongue',
-  title: 'قولها بسرعة',
-  tagline: 'جمل تعقّد اللسان… قلها ٣ مرات ورا بعض!',
-  emoji: '👅',
-  categories: ['laugh', 'quick'],
-  accent: ['#f0509a', '#29c4e6'],
-  minutes: '4–6 د',
-  badge: 'new',
-  voice: true,
-  howTo: ['صاحب الدور تطلع له جملة صعبة النطق.', 'يقولها ٣ مرات ورا بعض بسرعة في المكالمة.', 'شريكه يقيّمه من ٥ نجوم 😂', 'بعدها يتبدل الدور.'],
-  mode: 'turns',
-  renderer: 'tongue',
-  setup: [turnsOpt('6', ['4', '6', '10'])],
-  build: (o, rng) => {
-    const n = N(o, 'turns', 6)
-    return { rounds: n, seconds: null, content: { free: true, turns: n, phrases: pick(tongueTwisters, n, rng) } }
-  },
-  summarize: (ctx) => {
-    const scores = emptyScores(ctx.players)
-    for (const m of mv(ctx, 'rate')) {
-      const speaker = otherOf(m.player_id, ctx.players)
-      if (speaker) scores[speaker] += Number(m.move.stars ?? 0)
-    }
-    return { scores, unit: 'نجمة ⭐', headline: winnerHeadline(scores, ctx.players, '{name} لسانه ذهب! 🏅'), celebrate: true }
-  },
-}
 
 /* =========================== أغبى إجابة =========================== */
 const dumb: GameDef = {
@@ -962,13 +918,11 @@ export const newGames: GameDef[] = [
   drawDescribe,
   drawContinue,
   taboo,
-  act,
   hum,
   twoTruths,
   wordRace,
   noLaugh,
   forbidden,
-  tongue,
   dumb,
   twenty,
   reflex,

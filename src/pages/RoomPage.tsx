@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Copy, DoorOpen, Flame, Heart, Loader2, MessageCircle, Moon, Share2, Sparkles, Wifi, WifiOff } from 'lucide-react'
+import { Copy, DoorOpen, Loader2, MessageCircle, Moon, Share2, Sparkles, Wifi, WifiOff } from 'lucide-react'
 import { RoomProvider, useRoom } from '../lib/rooms/RoomProvider'
 import { normalizeCode, roomsApi } from '../lib/rooms/api'
 import { games, gameById, categories, suggestedGame } from '../games/registry'
 import { nightById, nights, type Night } from '../games/nights'
-import { stakeList } from '../games/content/v2/voice'
-import { CornerSheet, useDaily, type CornerTab } from '../components/room/Corner'
+import { allStakes as stakeList } from '../games/content/v2/index'
+
+/** هل شُغّل ملف التحديث (games_v2) في Supabase؟ نفحصه مرة وحدة */
+let dbOk: boolean | null = null
+async function dbReady() {
+  if (dbOk) return true
+  const r = await roomsApi.secrets('00000000-0000-0000-0000-000000000000')
+  dbOk = r.ok || r.error !== 'need_update'
+  return dbOk
+}
 import type { CategoryId, GameDef } from '../games/types'
 import { GameHost, Results } from '../games/GameHost'
 import { ChatPanel } from '../components/chat/ChatPanel'
@@ -59,7 +67,6 @@ export function RoomScreen({ code }: { code: string }) {
   const toast = useToast()
   const [chat, setChat] = useState(false)
   const [leaveOpen, setLeaveOpen] = useState(false)
-  const [corner, setCorner] = useState<CornerTab | null>(null)
   const [dismissed, setDismissed] = useState<string | null>(null)
   const prevPlayers = useRef<number | null>(null)
   const seenAbandon = useRef<string | null>(null)
@@ -131,9 +138,6 @@ export function RoomScreen({ code }: { code: string }) {
           </button>
           <ConnectionPill />
           <div className="flex-1" />
-          <IconButton label="ركننا" onClick={() => setCorner('daily')}>
-            <Heart className="size-5" />
-          </IconButton>
           <IconButton label={t('chat')} onClick={() => setChat((v) => !v)} badge={r.unread} active={chat}>
             <MessageCircle className="size-5" />
           </IconButton>
@@ -152,7 +156,7 @@ export function RoomScreen({ code }: { code: string }) {
             <motion.div key={view + (s?.id ?? '')} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }}>
               {view === 'game' && <GameHost />}
               {view === 'results' && <ResultsView onMenu={() => setDismissed(s!.id)} />}
-              {view === 'lobby' && <Lobby code={code} openCorner={(tab) => setCorner(tab)} />}
+              {view === 'lobby' && <Lobby code={code} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -171,7 +175,6 @@ export function RoomScreen({ code }: { code: string }) {
         </button>
       )}
       <ChatPanel open={chat} onClose={() => setChat(false)} />
-      <CornerSheet open={corner !== null} initial={corner ?? 'daily'} onClose={() => setCorner(null)} />
 
       <Sheet open={leaveOpen} onClose={() => setLeaveOpen(false)} title="خيارات الغرفة">
         <div className="space-y-3">
@@ -242,6 +245,10 @@ function useStarter() {
     if (!reqRef.current || reqRef.current.key !== key) reqRef.current = { key, id: uuid() }
     setBusy(true)
     try {
+      if (!(await dbReady())) {
+        toast(errorText('need_update'), 'error')
+        return false
+      }
       // لا تتكرر الأسئلة داخل الغرفة حتى تنتهي أسئلة اللعبة
       const prev = loadSeen(r.room.code, g.id)
       beginBuild(prev)
@@ -293,30 +300,6 @@ function ResultsView({ onMenu }: { onMenu: () => void }) {
       onNightNext={night ? onNightNext : undefined}
       onReplay={() => g && void start(g, { ...(lastOpts.get(g.id) ?? {}), stake: (r.session?.content?.stake as string) ?? lastOpts.get(g.id)?.stake ?? '' }, replayKey)}
     />
-  )
-}
-
-/* ------------------------------ سؤال اليوم ------------------------------ */
-function DailyCard({ onOpen }: { onOpen: () => void }) {
-  const { partner } = useRoom()
-  const { q, data } = useDaily()
-  const status = !data ? '…' : data.mine && data.theirs ? 'جاوبتوا الاثنين 💞 شوفوا الإجابات' : data.mine ? `جاوبت ✓ بانتظار ${partner?.nickname ?? 'شريكك'}` : data.their_done ? `${partner?.nickname ?? 'شريكك'} جاوب — دورك! 👀` : 'ما أحد جاوب لين الحين'
-  return (
-    <button onClick={onOpen} className="w-full mb-4 text-start glass rounded-[1.5rem] p-4 flex items-center gap-3 hover:bg-white/10">
-      <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-iris-500/40 to-frost-500/30 text-2xl">💭</span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-xs text-mist">
-          سؤال اليوم
-          {data && data.streak > 0 && (
-            <span className="inline-flex items-center gap-0.5 text-champagne">
-              <Flame className="size-3.5" /> {data.streak}
-            </span>
-          )}
-        </span>
-        <span className="block font-medium truncate mt-0.5">{q?.q}</span>
-        <span className="block text-xs text-mist mt-0.5">{status}</span>
-      </span>
-    </button>
   )
 }
 
@@ -394,7 +377,7 @@ function NightPicker({ canStart, busy, onStart }: { canStart: boolean; busy: boo
   )
 }
 
-function Lobby({ code, openCorner }: { code: string; openCorner: (tab: CornerTab) => void }) {
+function Lobby({ code }: { code: string }) {
   const r = useRoom()
   const toast = useToast()
   const [cat, setCat] = useState<CategoryId | 'all'>('all')
@@ -460,8 +443,6 @@ function Lobby({ code, openCorner }: { code: string; openCorner: (tab: CornerTab
           </div>
         </section>
       )}
-
-      {r.partner && <DailyCard onOpen={() => openCorner('daily')} />}
 
       {r.partner && (
         <NightPicker

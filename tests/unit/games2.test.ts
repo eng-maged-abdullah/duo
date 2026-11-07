@@ -6,7 +6,7 @@ import { c4Outcome, c4Replay, chainCheck, chainReplay, dotsBoxLines, dotsLineCou
 import { betChips, dreamFlip, raceScore } from '../../src/games/defs2'
 import { decodePoints, encodePoint, visibleStrokes } from '../../src/games/renderers/DrawCanvas'
 import { nights } from '../../src/games/nights'
-import { tabooCards } from '../../src/games/content/v2/voice'
+import { allTaboo as tabooCards, allAct, drawWords, allForbiddenRules } from '../../src/games/content/v2/index'
 import type { Answer, GameSession, Move, Player } from '../../src/types/db'
 
 const A = 'aaaaaaaa-0000-0000-0000-000000000001'
@@ -98,7 +98,11 @@ describe('الرسم', () => {
 
 describe('ألعاب البطاقات والصوت', () => {
   it('الكلمة الممنوعة: كل بطاقة فيها ٤ كلمات ممنوعة ومافيه تكرار', () => {
-    expect(tabooCards.length).toBeGreaterThanOrEqual(150)
+    expect(tabooCards.length).toBeGreaterThanOrEqual(280)
+    expect(allAct.length).toBeGreaterThanOrEqual(190)
+    expect(allForbiddenRules.length).toBeGreaterThanOrEqual(45)
+    for (const lv of ['easy', 'medium', 'hard'] as const) expect(drawWords[lv].length, lv).toBeGreaterThanOrEqual(140)
+    for (const c of tabooCards) for (const f of c.f) expect(f.length, c.w).toBeGreaterThan(0)
     for (const c of tabooCards) expect(c.f.length, c.w).toBe(4)
     expect(new Set(tabooCards.map((c) => c.w)).size).toBe(tabooCards.length)
   })

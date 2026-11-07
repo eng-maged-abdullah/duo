@@ -227,6 +227,7 @@ function OptionButton({ children, active, disabled, onClick, tall }: { children:
       whileTap={{ scale: 0.97 }}
       disabled={disabled}
       onClick={onClick}
+      data-opt=""
       className={`rounded-2xl px-4 text-[15px] font-medium leading-snug transition-colors ${tall ? 'min-h-28 text-lg font-display' : 'min-h-14 py-3'} ${
         active ? 'btn-primary text-white' : 'glass hover:bg-white/10'
       }`}
@@ -401,7 +402,7 @@ function Verdict({ verdict, canJudge, waitText, onJudge }: { verdict: boolean | 
     <div className="glass rounded-2xl p-4">
       <p className="text-center mb-3 font-medium">هل التوقع صحيح؟</p>
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="soft" icon={<Check className="size-5" />} onClick={() => onJudge(true)}>
+        <Button variant="soft" data-judge="yes" icon={<Check className="size-5" />} onClick={() => onJudge(true)}>
           صح
         </Button>
         <Button variant="danger" icon={<X className="size-5" />} onClick={() => onJudge(false)}>
@@ -444,7 +445,7 @@ function RecallBlock({
         <p className="text-center">{verdict ? 'صح ✅' : 'خطأ ❌'}</p>
       ) : onJudge ? (
         <div className="grid grid-cols-2 gap-3">
-          <Button size="sm" variant="soft" onClick={() => onJudge(true)}>
+          <Button size="sm" variant="soft" data-judge="yes" onClick={() => onJudge(true)}>
             صح
           </Button>
           <Button size="sm" variant="danger" onClick={() => onJudge(false)}>
@@ -489,7 +490,7 @@ function NextButton({
 
   return (
     <div className="mt-5">
-      <Button variant="primary" size="lg" block disabled={pendingJudge} loading={busy} onClick={onNext} icon={<ChevronLeft className="size-5" />}>
+      <Button variant="primary" size="lg" block disabled={pendingJudge} loading={busy} onClick={onNext} icon={<ChevronLeft className="size-5" />} data-next="">
         {pendingJudge ? 'بانتظار الحكم…' : last ? 'عرض النتيجة' : 'الجولة التالية'}
       </Button>
       <p className="mt-2 text-center text-xs text-mist">أي واحد منكم يقدر ينقل الجولة للطرفين</p>

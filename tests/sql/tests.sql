@@ -371,67 +371,17 @@ select t.ok((rate_answer(:'dumb', 1, :'B', 5) ->> 'error') = 'bad_request', 'v2-
 select t.ok((rate_answer(:'dumb', 1, :'A', 9) ->> 'error') = 'bad_request', 'v2-39 rating range');
 select t.ok((select rating from game_answers where session_id = :'dumb' and player_id = :'A') = 4, 'v2-40 rating stored');
 
--- الرسائل المقفلة
-reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
-set role authenticated;
-select t.ok((letter_create(:'room3', 'افتحها في ذكرانا 💜', now() + interval '3 days') ->> 'ok')::boolean, 'v2-41 create locked letter');
-select t.ok((letter_create(:'room3', 'رسالة مفتوحة', now()) ->> 'ok')::boolean, 'v2-42 create open letter');
-select t.ok((select count(*) from jsonb_array_elements(letter_list(:'room3') -> 'letters') x where x ->> 'body' is not null) = 2, 'v2-43 author reads own letters');
-reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
-set role authenticated;
-select t.ok((select count(*) from jsonb_array_elements(letter_list(:'room3') -> 'letters') x where x ->> 'body' is not null) = 1, 'v2-44 partner cannot read locked letter body');
-select t.ok((select count(*) from jsonb_array_elements(letter_list(:'room3') -> 'letters')) = 2, 'v2-45 partner sees locked letter exists');
-do $$ begin
-  begin
-    perform 1 from public.room_letters;
-    raise exception 'FAIL: direct letter read';
-  exception when insufficient_privilege then null; end;
-end $$;
-select t.ok(true, 'v2-46 no direct read of letters table');
-select t.ok((letter_delete((select (x ->> 'id')::uuid from jsonb_array_elements(letter_list(:'room3') -> 'letters') x limit 1)) ->> 'error') = 'not_allowed', 'v2-47 cannot delete partner letter');
-
--- قصتنا وقائمة الأحلام
-select t.ok((moment_add(:'room3', 'bucket', 'نسافر اليابان', '', '🗾') ->> 'ok')::boolean, 'v2-48 add bucket item');
-select t.ok((moment_add(:'room3', 'timeline', 'أول لقاء', 'في المقهى', '☕', '2024-02-14') ->> 'ok')::boolean, 'v2-49 add timeline moment');
-select id as mom from room_moments where kind = 'bucket' and room_id = :'room3' limit 1 \gset
-select t.ok((moment_add(:'room3', 'secret', 'x') ->> 'error') = 'bad_request', 'v2-50 bad moment kind');
-reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
-set role authenticated;
-select t.ok((moment_done(:'mom', true) ->> 'ok')::boolean, 'v2-51 partner ticks shared dream');
-select t.ok((moment_delete((select id from room_moments where kind = 'timeline' and room_id = :'room3' limit 1)) ->> 'error') = 'not_allowed', 'v2-52 cannot delete partner memory');
+-- الغريب ما يشوف رسم ولا أسرار
 reset role; select set_config('request.jwt.claim.sub', :'C', false) \g /dev/null
 set role authenticated;
-select t.ok((select count(*) from room_moments) = 0, 'v2-53 outsider sees no moments');
-select t.ok((letter_list(:'room3') ->> 'error') = 'not_member', 'v2-54 outsider cannot list letters');
-select t.ok((daily_get(:'room3', current_date) ->> 'error') = 'not_member', 'v2-55 outsider no daily');
 select t.ok((select count(*) from game_strokes) = 0, 'v2-56 outsider sees no strokes');
 select t.ok((get_secrets(:'dgs') ->> 'error') = 'not_member', 'v2-57 outsider cannot read secrets');
-
--- سؤال اليوم
 reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
 set role authenticated;
-select t.ok((daily_answer(:'room3', current_date, 'أحب صوتك') ->> 'ok')::boolean, 'v2-58 answer daily');
-select t.ok((daily_answer(:'room3', current_date - 5, 'قديم') ->> 'error') = 'bad_request', 'v2-59 cannot answer old days');
-reset role; select set_config('request.jwt.claim.sub', :'B', false) \g /dev/null
-set role authenticated;
-select t.ok((daily_get(:'room3', current_date) ->> 'theirs') is null and (daily_get(:'room3', current_date) ->> 'their_done')::boolean, 'v2-60 partner answer hidden until I answer');
-select daily_answer(:'room3', current_date, 'وأنا أحب ضحكتك') \g /dev/null
-select t.ok((daily_get(:'room3', current_date) ->> 'theirs') = 'أحب صوتك', 'v2-61 partner answer shown after answering');
-reset role;
-insert into daily_answers (room_id, day, user_id, answer) values
-  (:'room3', current_date - 1, :'A', 'x'), (:'room3', current_date - 1, :'B', 'y'),
-  (:'room3', current_date - 2, :'A', 'x'), (:'room3', current_date - 2, :'B', 'y'),
-  (:'room3', current_date - 4, :'A', 'x'), (:'room3', current_date - 4, :'B', 'y');
-select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null
-set role authenticated;
-select t.ok((daily_get(:'room3', current_date) ->> 'streak')::int = 3, 'v2-62 streak counts consecutive days');
-select t.ok(jsonb_array_length(daily_get(:'room3', current_date) -> 'history') = 3, 'v2-63 history of past days');
-select t.ok((room_stats(:'room3') ->> 'ok')::boolean and (room_stats(:'room3') ->> 'daily')::int = 4, 'v2-64 room stats');
 -- حذف الغرفة يحذف كل شي معها
 select t.ok((delete_room(:'room3') ->> 'ok')::boolean, 'v2-65 delete room3');
 reset role;
-select t.ok((select count(*) from room_letters where room_id = :'room3') + (select count(*) from room_moments where room_id = :'room3')
-          + (select count(*) from daily_answers where room_id = :'room3') + (select count(*) from game_strokes where room_id = :'room3') = 0, 'v2-66 everything removed with the room');
+select t.ok((select count(*) from game_strokes where room_id = :'room3') + (select count(*) from game_secrets s join game_sessions g on g.id = s.session_id where g.room_id = :'room3') = 0, 'v2-66 everything removed with the room');
 
 -- ========== الغرف المهجورة تنحذف بعد ساعة ==========
 reset role; select set_config('request.jwt.claim.sub', :'A', false) \g /dev/null

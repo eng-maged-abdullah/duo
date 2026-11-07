@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Play } from 'lucide-react'
 import type { GameDef } from '../../games/types'
-import { stakeList } from '../../games/content/v2/voice'
+import { allStakes as stakeList } from '../../games/content/v2/index'
 import { Sheet } from '../ui/Sheet'
 import { Button } from '../ui/Button'
 

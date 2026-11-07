@@ -9,7 +9,6 @@ export type RendererId =
   | 'truthdare'
   | 'story'
   | 'memory'
-  | 'number'
   | 'drawguess'
   | 'drawdescribe'
   | 'drawcontinue'
@@ -19,7 +18,6 @@ export type RendererId =
   | 'wordrace'
   | 'nolaugh'
   | 'forbidden'
-  | 'tongue'
   | 'rated' // أغبى إجابة
   | 'twenty'
   | 'reflex'

@@ -430,7 +430,7 @@ export function BetGame({ def }: { def: GameDef }) {
             <p className="text-sm text-mist mb-2">١. جوابك أنت</p>
             <div className="grid grid-cols-2 gap-2">
               {item.options.map((o, i) => (
-                <button key={i} onClick={() => setSelf(i)} className={`rounded-2xl px-3 py-3 text-sm min-h-12 ${self === i ? 'btn-primary on-color text-white' : 'glass hover:bg-white/10'}`}>
+                <button key={i} data-bet-self onClick={() => setSelf(i)} className={`rounded-2xl px-3 py-3 text-sm min-h-12 ${self === i ? 'btn-primary on-color text-white' : 'glass hover:bg-white/10'}`}>
                   {o}
                 </button>
               ))}
@@ -440,7 +440,7 @@ export function BetGame({ def }: { def: GameDef }) {
             <p className="text-sm text-mist mb-2">٢. وش بيكون جواب {b.pName}؟ 🤔</p>
             <div className="grid grid-cols-2 gap-2">
               {item.options.map((o, i) => (
-                <button key={i} onClick={() => setGuess(i)} className={`rounded-2xl px-3 py-3 text-sm min-h-12 ${guess === i ? 'bg-frost-500/50 ring-1 ring-frost-400/70' : 'glass hover:bg-white/10'}`}>
+                <button key={i} data-bet-guess onClick={() => setGuess(i)} className={`rounded-2xl px-3 py-3 text-sm min-h-12 ${guess === i ? 'bg-frost-500/50 ring-1 ring-frost-400/70' : 'glass hover:bg-white/10'}`}>
                   {o}
                 </button>
               ))}

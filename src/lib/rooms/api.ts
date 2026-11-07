@@ -16,7 +16,7 @@ export async function rpc<T = object>(fn: string, args: Record<string, unknown>)
     const { data, error } = await supabase().rpc(fn, args)
     if (error) {
       if (/jwt|token/i.test(error.message)) return { ok: false, error: 'no_session' }
-      if (error.code === 'PGRST202' || /could not find the function|does not exist/i.test(error.message)) return { ok: false, error: 'need_update' }
+      if (error.code === 'PGRST202' || /could not find the function|function .* does not exist/i.test(error.message)) return { ok: false, error: 'need_update' }
       return { ok: false, error: 'network' }
     }
     const res = data as Rpc<T>
@@ -87,23 +87,7 @@ export const roomsApi = {
   addStroke: (sessionId: string, round: number, stroke: unknown) => rpc<{ id: number }>('add_stroke', { p_session: sessionId, p_round: round, p_stroke: stroke }),
   rate: (sessionId: string, round: number, target: string, score: number) =>
     rpc('rate_answer', { p_session: sessionId, p_round: round, p_target: target, p_score: score }),
-  letterCreate: (roomId: string, body: string, unlockAt: string) => rpc<{ id: string }>('letter_create', { p_room: roomId, p_body: body, p_unlock_at: unlockAt }),
-  letterList: (roomId: string) =>
-    rpc<{ now: string; letters: { id: string; author_id: string; unlock_at: string; created_at: string; open: boolean; body: string | null }[] }>('letter_list', { p_room: roomId }),
-  letterDelete: (id: string) => rpc('letter_delete', { p_id: id }),
-  momentAdd: (roomId: string, kind: 'timeline' | 'bucket' | 'saved', title: string, body = '', emoji = '', date: string | null = null) =>
-    rpc<{ id: string }>('moment_add', { p_room: roomId, p_kind: kind, p_title: title, p_body: body, p_emoji: emoji, p_date: date }),
-  momentDone: (id: string, done: boolean) => rpc('moment_done', { p_id: id, p_done: done }),
-  momentDelete: (id: string) => rpc('moment_delete', { p_id: id }),
-  dailyAnswer: (roomId: string, day: string, text: string) => rpc('daily_answer', { p_room: roomId, p_day: day, p_text: text }),
-  dailyGet: (roomId: string, day: string) =>
-    rpc<{ mine: string | null; theirs: string | null; their_done: boolean; streak: number; history: { day: string; mine: string; theirs: string }[] }>('daily_get', {
-      p_room: roomId,
-      p_day: day,
-    }),
   touch: (roomId: string) => rpc('touch_room', { p_room: roomId }),
-  stats: (roomId: string) =>
-    rpc<{ games: number; days: number; since: string; letters: number; moments: number; dreams: number; dreams_done: number; daily: number }>('room_stats', { p_room: roomId }),
   sendMessage: (roomId: string, body: string, clientId: string) =>
     rpc<{ id: string; created_at: string; duplicate?: boolean }>('send_message', {
       p_room: roomId,

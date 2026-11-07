@@ -3,16 +3,15 @@ import { shuffle, type Rng } from '../utils/random'
 import { fresh as pick } from './engine/fresh'
 import { dares, tdLevels, truths, type TdLevel } from './content/truthDare'
 import { moreDares, moreTruths } from './content/truthDareMore'
+import { dares3, truths3 } from './content/truthDare3'
 import {
   allCompat,
   allEmoji,
   allGuess,
   allKnowMe,
   allNever,
-  allQuick,
   allRank,
   allRemember,
-  allRiddles,
   allStory,
   allTalk,
   allTF,
@@ -22,7 +21,7 @@ import {
   memoryEmoji,
   talkCategories,
 } from './banks'
-import { byRound, emptyScores, isSkip, nameOf, otherOf, pct, rankSimilarity, subjectOf, winnerHeadline } from './engine/helpers'
+import { byRound, emptyScores, isSkip, otherOf, pct, rankSimilarity, subjectOf, winnerHeadline } from './engine/helpers'
 import { newGames } from './defs2'
 
 export const categories: { id: CategoryId; label: string; emoji: string }[] = [
@@ -329,8 +328,8 @@ const defs: GameDef[] = [
         seconds: null,
         content: {
           total,
-          truths: pick(levels.flatMap((l) => [...truths[l], ...moreTruths[l]]), 30, rng),
-          dares: pick(levels.flatMap((l) => [...dares[l], ...moreDares[l]]), 30, rng),
+          truths: pick(levels.flatMap((l) => [...new Set([...truths[l], ...moreTruths[l], ...truths3[l]])]), 30, rng),
+          dares: pick(levels.flatMap((l) => [...new Set([...dares[l], ...moreDares[l], ...dares3[l]])]), 30, rng),
         },
       }
     },
@@ -473,45 +472,6 @@ const defs: GameDef[] = [
     },
   },
   {
-    id: 'quick',
-    title: 'تحدي المعلومات',
-    tagline: 'معلومات وألغاز… والأسرع يكسب',
-    emoji: '⚡',
-    categories: ['quick', 'compete', 'memory'],
-    accent: ['#ffc861', '#ff6b6b'],
-    minutes: '3–6 د',
-    stakes: true,
-    howTo: ['سؤال بمؤقت موحد للاثنين.', 'الإجابة الصحيحة = 10 نقاط + نقاط سرعة حتى 10.', 'وقت الإجابة يحسبه الخادم لضمان العدالة.'],
-    mode: 'rounds',
-    renderer: 'pair',
-    setup: [
-      {
-        key: 'type',
-        label: 'النوع',
-        kind: 'select',
-        default: 'mix',
-        options: [
-          { value: 'mix', label: 'منوّع ✨' },
-          { value: 'info', label: 'معلومات عامة 📚' },
-          { value: 'riddle', label: 'ألغاز 🤔' },
-        ],
-      },
-      roundsOpt('10', ['6', '10', '15']),
-    ],
-    build: (o, rng) => {
-      const n = N(o, 'rounds', 10)
-      const t = o.type ?? 'mix'
-      const info = (k: number) => pick(allQuick, k, rng).map((x) => mcq(rng, x.q, x.a, x.w, { tag: 'معلومة' }))
-      const rid = (k: number) => pick(allRiddles, k, rng).map((x) => mcq(rng, x.q, x.a, x.w, { tag: 'لغز' }))
-      const its = t === 'info' ? info(n) : t === 'riddle' ? rid(n) : shuffle([...info(Math.ceil(n / 2)), ...rid(Math.floor(n / 2))], rng)
-      return { rounds: its.length, seconds: t === 'info' ? 15 : t === 'riddle' ? 25 : 20, content: { items: its } }
-    },
-    summarize: (ctx) => {
-      const secs = ctx.session.round_seconds ?? 15
-      return quizSummary(ctx, (ms) => 10 + Math.max(0, Math.round(10 * (1 - ms / (secs * 1000)))))
-    },
-  },
-  {
     id: 'sixty',
     title: 'تحدي 60 ثانية',
     tagline: 'صح أو خطأ… أكبر عدد في دقيقة',
@@ -532,43 +492,6 @@ const defs: GameDef[] = [
       const answered = emptyScores(ctx.players)
       for (const a of ctx.answers) answered[a.player_id]++
       return { ...s, lines: ctx.players.map((p) => `${p.nickname}: جاوب ${answered[p.user_id]} عبارة`) }
-    },
-  },
-  {
-    id: 'number',
-    title: 'توقع الرقم',
-    tagline: 'رقم سري من 1 إلى 100',
-    emoji: '🔢',
-    categories: ['compete', 'quick'],
-    accent: ['#6d6bff', '#f0509a'],
-    minutes: '3–6 د',
-    stakes: true,
-    howTo: ['واحد يختار رقمًا سريًا من 1 إلى 100 (محفوظ في الخادم، والثاني ما يقدر يشوفه).', 'الثاني يخمن، والخادم يعطيه تلميح: أكبر أو أصغر.', 'عندك 8 محاولات: كل ما خمنت أسرع زادت نقاطك.', 'بعدها تتبدل الأدوار.'],
-    mode: 'turns',
-    renderer: 'number',
-    setup: [
-      {
-        key: 'rounds',
-        label: 'عدد الجولات',
-        kind: 'select',
-        default: '2',
-        options: [
-          { value: '2', label: 'جولتان (مرة لكل واحد)' },
-          { value: '4', label: '4 جولات' },
-        ],
-      },
-    ],
-    build: (o) => ({ rounds: N(o, 'rounds', 2), seconds: null, content: { max: 100, attempts: 8 } }),
-    summarize: (ctx) => {
-      const scores = emptyScores(ctx.players)
-      const lines: string[] = []
-      for (const m of ctx.moves) {
-        if (m.move.kind === 'guess' && m.move.round_over) {
-          if (m.move.solved) scores[m.player_id] += 9 - m.move.attempt
-          lines.push(`${nameOf(m.player_id, ctx.players)}: ${m.move.solved ? `عرف الرقم ${m.move.secret} في ${m.move.attempt} محاولات` : `ما عرف الرقم ${m.move.secret}`}`)
-        }
-      }
-      return { scores, unit: 'نقطة', headline: winnerHeadline(scores, ctx.players), lines, celebrate: true }
     },
   },
   {
@@ -637,7 +560,6 @@ const order = [
   'reflex',
   'compliments',
   'liar',
-  'act',
   'dream',
   'draw-describe',
   'two-truths',
@@ -654,13 +576,10 @@ const order = [
   'twenty',
   'dots',
   'chain',
-  'quick',
-  'tongue',
   'memory',
   'story',
   'sixty',
   'emoji',
-  'number',
 ]
 const allDefs = [...defs, ...newGames]
 export const games: GameDef[] = [...allDefs].sort((a, b) => {
@@ -691,8 +610,12 @@ const legacy: Record<string, string> = {
   'this-or-that': 'taste',
   compat: 'taste',
   rank: 'taste',
-  'what-guess': 'quick',
+  'what-guess': 'sixty',
   'open-card': 'truth-dare',
+  quick: 'sixty',
+  number: 'sixty',
+  tongue: 'no-laugh',
+  act: 'taboo',
 }
 export const gameById = (id: string | null | undefined) => allDefs.find((g) => g.id === id)
 export const suggestedGame = (id: string | null | undefined) => gameById(id) ?? gameById(legacy[id ?? ''])
@@ -704,7 +627,6 @@ export const contentStats: Record<string, number> = {
   'truth-dare': 500,
   'who-more': allWhoMore.length + allWhoMoreBold.length,
   never: allNever.length,
-  quick: allQuick.length + allRiddles.length,
   sixty: allTF.length,
   emoji: allEmoji.length,
   story: allStory.length,

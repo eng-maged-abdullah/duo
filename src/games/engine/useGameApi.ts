@@ -10,6 +10,14 @@ export function useGameApi() {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const inflight = useRef(false)
+  // آخر رقم حركة نعرفه — يتحدث فورًا بعد أي عملية ناجحة قبل وصول التحديث
+  const seqRef = useRef(0)
+  const sessRef = useRef<string | undefined>(undefined)
+  const latest = moves.at(-1)?.seq ?? 0
+  if (sessRef.current !== session?.id) {
+    sessRef.current = session?.id
+    seqRef.current = latest
+  } else if (latest > seqRef.current) seqRef.current = latest
 
   const run = useCallback(
     async <T,>(fn: () => Promise<{ ok: boolean; error?: string } & T>, quietErrors: string[] = []) => {
@@ -20,10 +28,13 @@ export function useGameApi() {
         const res = await fn()
         if (!res.ok) {
           const code = (res as { error?: string }).error
-          if (!quietErrors.includes(code ?? '')) toast(errorText(code), 'error')
-          if (code === 'stale' || code === 'round_closed' || code === 'not_your_turn') void refreshGame()
+          // اللعبة انتهت من جهة الشريك (مثلاً ضغطتوا «عرض النتيجة» سوا): الواجهة بتتحدث بروحها
+          if (!quietErrors.includes(code ?? '') && code !== 'session_closed') toast(errorText(code), 'error')
+          if (code === 'stale' || code === 'round_closed' || code === 'not_your_turn' || code === 'session_closed') void refreshGame()
           return null
         }
+        const seq = (res as { seq?: unknown }).seq
+        if (typeof seq === 'number' && seq > seqRef.current) seqRef.current = seq
         void refreshGame()
         return res
       } finally {
@@ -38,10 +49,10 @@ export function useGameApi() {
   return {
     busy,
     answer: (round: number, answer: Record<string, unknown>) => run(() => roomsApi.submitAnswer(sid, round, answer)),
-    next: (round: number) => run(() => roomsApi.nextRound(sid, round), ['not_ready']),
+    next: (round: number) => run(() => roomsApi.nextRound(sid, round), ['not_ready', 'round_closed']),
     expire: (round: number) => roomsApi.expireRound(sid, round).then(() => refreshGame()),
     judge: (round: number, target: string, correct: boolean) => run(() => roomsApi.judge(sid, round, target, correct)),
-    move: (move: Record<string, unknown>, quiet: string[] = []) => run(() => roomsApi.move(sid, (moves.at(-1)?.seq ?? 0) + 1, move), quiet),
+    move: (move: Record<string, unknown>, quiet: string[] = []) => run(() => roomsApi.move(sid, seqRef.current + 1, move), quiet),
     secret: (action: string, slot: string, value: unknown = null, quiet: string[] = []) =>
       run(() => roomsApi.secret(sid, action, slot, value), quiet) as Promise<null | { ok: true; seq?: number; correct?: boolean; duplicate?: boolean; value?: unknown }>,
     rate: (round: number, target: string, score: number) => run(() => roomsApi.rate(sid, round, target, score)),
