@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Copy, Download, MoreVertical, PlusSquare, Share } from 'lucide-react'
+import { Check, Copy, Download, MoreHorizontal, MoreVertical, PlusSquare, Share } from 'lucide-react'
 import { Logo } from './ui/Logo'
 import { Button } from './ui/Button'
-import { canPromptInstall, inAppBrowser, iosBrowser, onInstallChange, platform, promptInstall, wasInstalled, type Platform } from '../lib/pwa'
+import { canPromptInstall, inAppBrowser, iosBrowser, onInstallChange, platform, promptInstall, safariVersion, wasInstalled, type Platform } from '../lib/pwa'
 
 /** رمز الغرفة من رابط الدعوة (عشان ما يضيع بعد التثبيت) */
 function codeFromLink() {
@@ -45,9 +45,25 @@ const AppIcon = ({ hl }: { hl?: boolean }) => {
 
 function IosSteps() {
   const chrome = iosBrowser() === 'chrome'
+  // iOS 26 وأحدث: زر المشاركة صار داخل ⋯ جنب الرابط (أو ما نعرف النسخة: نشرح الجديدة)
+  const v = safariVersion()
+  const ios26 = !chrome && (v === 0 || v >= 26)
   return (
     <div className="grid grid-cols-2 gap-x-3 gap-y-5">
-      <Step n={1} text={chrome ? 'اضغط زر المشاركة فوق جنب الرابط' : 'اضغط زر المشاركة تحت'}>
+      <Step
+        n={1}
+        text={
+          chrome ? (
+            'اضغط زر المشاركة فوق جنب الرابط'
+          ) : ios26 ? (
+            <>
+              اضغط <b>⋯</b> جنب الرابط تحت، ثم <b>«مشاركة»</b>
+            </>
+          ) : (
+            'اضغط زر المشاركة تحت'
+          )
+        }
+      >
         <Phone>
           {chrome && (
             <div className="flex h-6 items-center justify-between border-b border-white/10 px-2 text-mist">
@@ -60,7 +76,24 @@ function IosSteps() {
           <div className="p-3 text-center">
             <p className="font-semibold">ثبّت DUO</p>
           </div>
-          {!chrome && (
+          {!chrome && ios26 && (
+            <>
+              <div className="absolute end-2 bottom-10 w-[96px] rounded-lg border border-white/10 bg-night-800">
+                <Row>نسخ</Row>
+                <Row hl>
+                  <Share className="size-3.5" /> مشاركة
+                </Row>
+              </div>
+              <div className="absolute inset-x-2 bottom-2 flex h-7 items-center justify-between rounded-full bg-white/10 px-2 text-mist">
+                <span>‹</span>
+                <span>duo.app</span>
+                <Hl>
+                  <MoreHorizontal className="size-4 text-cloud" />
+                </Hl>
+              </div>
+            </>
+          )}
+          {!chrome && !ios26 && (
             <div className="absolute inset-x-0 bottom-0 flex h-8 items-center justify-around border-t border-white/10 text-mist">
               <span>‹</span>
               <Hl>
@@ -72,7 +105,7 @@ function IosSteps() {
           )}
         </Phone>
       </Step>
-      <Step n={2} text="انزل شوي واختر «إضافة إلى الشاشة الرئيسية»">
+      <Step n={2} text={<>انزل شوي واختر <b>«إضافة إلى الشاشة الرئيسية»</b> (ما لقيتها؟ اضغط «عرض المزيد»)</>}>
         <Phone>
           <div className="absolute inset-x-0 bottom-0 rounded-t-xl border-t border-white/10 bg-night-800">
             <Row>نسخ</Row>
@@ -84,7 +117,7 @@ function IosSteps() {
           </div>
         </Phone>
       </Step>
-      <Step n={3} text="اضغط «إضافة» فوق">
+      <Step n={3} text={ios26 ? <>خل <b>«فتح كتطبيق ويب»</b> شغّال، واضغط «إضافة»</> : 'اضغط «إضافة» فوق'}>
         <Phone>
           <div className="flex h-6 items-center justify-between border-b border-white/10 px-2">
             <span className="text-mist">إلغاء</span>
@@ -94,6 +127,16 @@ function IosSteps() {
             <AppIcon />
             <span>DUO</span>
           </div>
+          {ios26 && (
+            <div className="mx-2 flex items-center justify-between rounded-lg bg-white/5 px-2 py-1.5">
+              <span>فتح كتطبيق ويب</span>
+              <Hl className="rounded-full">
+                <span className="inline-block h-4 w-7 rounded-full bg-emerald-500 p-0.5">
+                  <span className="block size-3 rounded-full bg-white ms-auto" />
+                </span>
+              </Hl>
+            </div>
+          )}
         </Phone>
       </Step>
       <Step n={4} text="افتح DUO من أيقونته في الشاشة الرئيسية">

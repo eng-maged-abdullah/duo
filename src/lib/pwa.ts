@@ -81,3 +81,9 @@ export const wasInstalled = () => {
     return false
   }
 }
+
+/** نسخة Safari في الآيفون (iOS 26 غيّر مكان زر المشاركة: صار داخل زر ⋯) */
+export function safariVersion() {
+  const m = navigator.userAgent.match(/Version\/(\d+)/)
+  return m ? Number(m[1]) : 0
+}
